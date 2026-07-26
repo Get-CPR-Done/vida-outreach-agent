@@ -1,0 +1,75 @@
+{
+  "contacted_emails": [],
+  "sent_thread_ids": [],
+  "forwarded_thread_ids": [],
+  "manae_roster_pending": [
+    {
+      "contact": {
+        "row": 3,
+        "email": "infomontessori@gmail.com",
+        "firstName": "Crisman",
+        "lastName": "Pamela",
+        "firstNameRaw": "CRISMAN",
+        "lastNameRaw": "PAMELA",
+        "company": "",
+        "tags": [
+          "Childcare Centers",
+          "DAY CARE CENTER"
+        ],
+        "sourceList": "CA Orgs (Child Facing)"
+      },
+      "hubspot": {
+        "found": true,
+        "isCustomer": true,
+        "name": "None None",
+        "company": null,
+        "lastDealName": null,
+        "lastDealValue": 0,
+        "lastDealDate": null,
+        "lifecycleStage": "customer"
+      }
+    }
+  ],
+  "last_roster_send": null,
+  "daily_sent_count": {
+    "2026-06-12": 497,
+    "2026-06-15": 283,
+    "2026-06-18": 2,
+    "2026-07-01": 88,
+    "2026-07-06": 41,
+    "2026-07-07": 9,
+    "2026-07-08": 3,
+    "2026-07-11": 287,
+    "2026-07-26": 2
+  },
+  "daily_reply_count": {
+    "2026-06-15": 10,
+    "2026-06-19": 7,
+    "2026-06-22": 0,
+    "2026-06-23": 0,
+    "2026-06-24": 0,
+    "2026-06-29": 0,
+    "2026-06-30": 0,
+    "2026-07-01": 0,
+    "2026-07-02": 0,
+    "2026-07-03": 0,
+    "2026-07-06": 0,
+    "2026-07-07": 2,
+    "2026-07-08": 0,
+    "2026-07-09": 0,
+    "2026-07-10": 0,
+    "2026-07-13": 1,
+    "2026-07-14": 1,
+    "2026-07-15": 3,
+    "2026-07-16": 2,
+    "2026-07-17": 0,
+    "2026-07-20": 1,
+    "2026-07-21": 0,
+    "2026-07-22": 0,
+    "2026-07-23": 0,
+    "2026-07-24": 0
+  },
+  "do_not_contact": [],
+  "bounce_replacement_queue": [],
+  "sheet_cursor": 8
+}

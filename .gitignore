@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+venv/
+.env
+outreach.log
+outreach_agent.lock
+.DS_Store
+
+# never commit exported reports / data dumps
+*.csv
+*.zip

@@ -1,0 +1,120 @@
+name: Outreach Agent
+
+on:
+  schedule:
+    # All times UTC. California is UTC-7 (PDT) / UTC-8 (PST).
+    # 9:00 AM PDT  = 16:00 UTC  (Mar–Nov)
+    # 9:00 AM PST  = 17:00 UTC  (Nov–Mar)
+    # Running at 16:00 UTC covers PDT; adjust to 17:00 in winter manually.
+
+    - cron: "0 16 * * 1-5"    # daily batch     — M–F 9:00 AM PDT
+    - cron: "5 16 * * 1"      # roster          — Monday 9:05 AM PDT
+    - cron: "0 16,18,20,22,0 * * 1-5"  # reply_check — every 2 hrs 9AM–5PM PDT
+
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "Mode to run"
+        required: true
+        default: "daily"
+        type: choice
+        options:
+          - daily
+          - roster
+          - reply_check
+          - reconcile
+      dry_run:
+        description: "Dry run (no emails sent)"
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+      limit:
+        description: "Max sends this run (blank = full daily cap). Use for a small live test."
+        required: false
+        default: ""
+        type: string
+
+permissions:
+  contents: write                    # lets the built-in GITHUB_TOKEN commit state.json back
+
+jobs:
+  run-agent:
+    runs-on: ubuntu-latest
+    concurrency:
+      group: outreach-agent          # prevents two jobs running simultaneously
+      cancel-in-progress: false      # don't cancel — let the running one finish
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4.2.2
+        # No PAT needed — uses the workflow's built-in GITHUB_TOKEN (contents: write above)
+
+      - name: Set up Python
+        uses: actions/setup-python@v5.6.0
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Determine mode
+        id: mode
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "mode=${{ github.event.inputs.mode }}" >> $GITHUB_OUTPUT
+            echo "dry_run=${{ github.event.inputs.dry_run }}" >> $GITHUB_OUTPUT
+            echo "limit=${{ github.event.inputs.limit }}" >> $GITHUB_OUTPUT
+          else
+            # Determine mode from which cron fired based on current minute
+            MINUTE=$(date +%M)
+            HOUR=$(date +%H)
+            DOW=$(date +%u)   # 1=Monday
+            if [ "$MINUTE" = "05" ] && [ "$DOW" = "1" ]; then
+              echo "mode=roster" >> $GITHUB_OUTPUT
+            elif [ "$MINUTE" = "00" ] && [ "$HOUR" = "16" ]; then
+              echo "mode=daily" >> $GITHUB_OUTPUT
+            else
+              echo "mode=reply_check" >> $GITHUB_OUTPUT
+            fi
+            echo "dry_run=false" >> $GITHUB_OUTPUT
+            echo "limit=" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Run outreach agent
+        env:
+          ANTHROPIC_API_KEY:  ${{ secrets.ANTHROPIC_API_KEY }}
+          HUBSPOT_TOKEN:      ${{ secrets.HUBSPOT_TOKEN }}
+          GMAIL_ADDRESS:      ${{ secrets.GMAIL_ADDRESS }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          MANAE_CALENDAR_LINK: ${{ secrets.MANAE_CALENDAR_LINK }}
+        run: |
+          MODE=${{ steps.mode.outputs.mode }}
+          DRY=${{ steps.mode.outputs.dry_run }}
+          LIMIT=${{ steps.mode.outputs.limit }}
+          ARGS="--mode $MODE --force-weekday"
+          if [ "$DRY" = "true" ]; then
+            ARGS="$ARGS --dry-run"
+          fi
+          if [ -n "$LIMIT" ]; then
+            ARGS="$ARGS --limit $LIMIT"
+          fi
+          echo "Running: python outreach_agent.py $ARGS"
+          python outreach_agent.py $ARGS
+
+      - name: Commit updated state.json
+        if: ${{ steps.mode.outputs.dry_run != 'true' }}
+        run: |
+          git config user.name  "Outreach Agent"
+          git config user.email "vida@getcprdone.com"
+          git add state.json
+          if git diff --staged --quiet; then
+            echo "No state.json changes to commit."
+          else
+            git commit -m "chore: update state.json [skip ci]"
+            git pull --rebase --autostash origin main || true
+            git push || echo "push failed (non-fatal) — state re-persists next run"
+          fi

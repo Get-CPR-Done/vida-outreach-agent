@@ -252,6 +252,14 @@ def is_role_address(email: str) -> bool:
     base = re.sub(r"\d+$", "", local)
     return base in ROLE_ADDRESS_PREFIXES
 
+def redact_email(addr: str) -> str:
+    """Mask an email for the (now public) Actions logs — 'j***@gmail.com'."""
+    addr = (addr or "").strip()
+    if "@" not in addr:
+        return "***"
+    local, _, dom = addr.partition("@")
+    return f"{local[:1]}***@{dom}"
+
 # ─── Helpers ──────────────────────────────────────────────────────────────────
 
 def is_weekday():
@@ -453,8 +461,8 @@ def check_hubspot(contact, retries=3):
             time.sleep(2 * (attempt + 1))
 
     # Exhausted retries — do NOT assume prospect. Signal error so the caller skips.
-    log.warning(f"  HubSpot lookup unresolved for {contact['email']} after {retries} tries: "
-                f"{last_err} — skipping (will retry next run)")
+    log.warning(f"  HubSpot lookup unresolved for {redact_email(contact['email'])} after "
+                f"{retries} tries: {last_err} — skipping (will retry next run)")
     return {"found": False, "isCustomer": False, "error": True}
 
 # ─── Bounce recovery — web search for replacement contact ─────────────────────
@@ -1086,7 +1094,7 @@ def check_replies(state, dry_run=False):
                 kind = classify_reply(sender, subject, body_text)
 
                 if kind == "bounce":
-                    log.info(f"  Bounce from {sender} — archiving silently")
+                    log.info(f"  Bounce from {redact_email(sender_email)} — archiving silently")
                     email_match = re.search(r"[\w.+-]+@[\w-]+\.[\w.]+", body_text)
                     if email_match:
                         bounced = email_match.group(0).lower()
@@ -1098,13 +1106,13 @@ def check_replies(state, dry_run=False):
                     archived_count += 1
 
                 elif kind == "ooo":
-                    log.info(f"  OOO from {sender} — archiving silently")
+                    log.info(f"  OOO from {redact_email(sender_email)} — archiving silently")
                     if not dry_run:
                         archive_message(mail, mid)
                     archived_count += 1
 
                 elif kind == "unsubscribe":
-                    log.info(f"  Unsubscribe from {sender} — archiving + blocking")
+                    log.info(f"  Unsubscribe from {redact_email(sender_email)} — archiving + blocking")
                     if sender_email:
                         do_not_contact.add(sender_email)
                         mark_row(sender_email, reply_status="Unsubscribed",
@@ -1120,7 +1128,7 @@ def check_replies(state, dry_run=False):
                     last  = (sender_name.split()[-1] if len(sender_name.split()) > 1 else "")
 
                     if interested:
-                        log.info(f"  SQL reply from {sender} ({reason}) → HubSpot + Manae")
+                        log.info(f"  SQL reply from {redact_email(sender_email)} ({reason}) → HubSpot + Manae")
                         if not dry_run:
                             hubspot_upsert_sql(sender_email, first, last)
                         mark_row(sender_email, reply_status="SQL",
@@ -1128,7 +1136,7 @@ def check_replies(state, dry_run=False):
                         tag = "SQL — booking interest"
                         sql_count += 1
                     else:
-                        log.info(f"  Genuine reply from {sender} (not SQL) → Manae")
+                        log.info(f"  Genuine reply from {redact_email(sender_email)} (not SQL) → Manae")
                         mark_row(sender_email, reply_status="Replied",
                                  last_result="replied (not SQL)")
                         tag = "reply"
@@ -1313,7 +1321,7 @@ def run_daily(dry_run=False, limit=None):
             if clean_last and clean_last != contact.get("lastNameRaw", ""):
                 name_updates["last"] = clean_last
 
-            log.info(f"Sending {i+1}/{len(to_send)} (row {row}): {email} | {subject}")
+            log.info(f"Sending {i+1}/{len(to_send)} (row {row}): {subject}")
 
             if dry_run:
                 log.info(f"  [DRY RUN] Would send. clean_first={clean_first!r} clean_last={clean_last!r}")
@@ -1331,7 +1339,7 @@ def run_daily(dry_run=False, limit=None):
                 log.info(f"  ✓ Sent ({today_sent}/{cap} today)")
             elif result.get("hard_bounce"):
                 err = str(result.get("error", "unknown"))
-                log.warning(f"  ✗ Hard bounce for {email}: {err}")
+                log.warning(f"  ✗ Hard bounce (row {row}): {err}")
                 do_not_contact.add(email.lower())
                 contacted.add(email.lower())
                 today_bounces.append(email)

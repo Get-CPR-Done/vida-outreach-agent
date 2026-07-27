@@ -45,6 +45,20 @@ PLACEHOLDER_ADDRESSES = {
 }
 
 
+def _retry(fn, tries=5):
+    """Run a Sheets API call, retrying transient TLS/network drops (SSLEOFError,
+    broken pipe, token-refresh failures) that Google's API throws intermittently
+    from CI runners. Raises the last error only after all retries are exhausted."""
+    last = None
+    for attempt in range(tries):
+        try:
+            return fn()
+        except Exception as e:
+            last = e
+            time.sleep(2 * (attempt + 1))
+    raise last
+
+
 def service():
     """Build an authenticated Sheets API client from the service-account JSON."""
     from google.oauth2 import service_account
@@ -61,9 +75,9 @@ def service():
 
 
 def _get(svc, spreadsheet_id, a1):
-    r = svc.spreadsheets().values().get(
+    r = _retry(lambda: svc.spreadsheets().values().get(
         spreadsheetId=spreadsheet_id, range=f"{SHEET_TAB}!{a1}"
-    ).execute()
+    ).execute())
     return r.get("values", [])
 
 
@@ -74,10 +88,10 @@ def ensure_headers(svc, spreadsheet_id):
     p = row[0] if len(row) > 0 else ""
     q = row[1] if len(row) > 1 else ""
     if p.strip().lower() != "touches" or q.strip().lower() != "last_result":
-        svc.spreadsheets().values().update(
+        _retry(lambda: svc.spreadsheets().values().update(
             spreadsheetId=spreadsheet_id, range=f"{SHEET_TAB}!P1:Q1",
             valueInputOption="RAW", body={"values": [["touches", "last_result"]]},
-        ).execute()
+        ).execute())
 
 
 def _cell(row, i):
@@ -157,10 +171,10 @@ def update_row(svc, spreadsheet_id, row_number, **fields):
         })
     if not data:
         return
-    svc.spreadsheets().values().batchUpdate(
+    _retry(lambda: svc.spreadsheets().values().batchUpdate(
         spreadsheetId=spreadsheet_id,
         body={"valueInputOption": "USER_ENTERED", "data": data},
-    ).execute()
+    ).execute())
 
 
 def build_email_index(svc, spreadsheet_id, max_rows=200000):

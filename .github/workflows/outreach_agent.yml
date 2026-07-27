@@ -106,7 +106,7 @@ jobs:
           python outreach_agent.py $ARGS
 
       - name: Commit updated state.json
-        if: ${{ steps.mode.outputs.dry_run != 'true' }}
+        if: ${{ always() && steps.mode.outputs.dry_run != 'true' }}
         run: |
           git config user.name  "Outreach Agent"
           git config user.email "vida@getcprdone.com"

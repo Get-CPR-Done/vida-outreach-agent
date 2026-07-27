@@ -1647,11 +1647,78 @@ def run_reconcile(dry_run=False):
     cells = sheets_db.batch_update(svc, SPREADSHEET_ID, updates)
     log.info(f"Reconcile complete: {len(updates)} rows, {cells} cells written")
 
+# ─── Lead dashboard / report ──────────────────────────────────────────────────
+
+def _sum_recent(counts_by_date, days):
+    """Sum a {date_iso: n} dict over the last `days` days (inclusive of today)."""
+    window = {(date.today() - timedelta(days=i)).isoformat() for i in range(days)}
+    return sum(v for k, v in counts_by_date.items() if k in window)
+
+def run_report(dry_run=False):
+    """Email Chris a lead dashboard: outbound volume, replies, SQLs, deliverability —
+    lifetime + last-7-days + today. Reads live status from the sheet + counters from state."""
+    from collections import Counter
+    today = today_str()
+    state = load_state()
+    svc = _sheet_service()
+    log.info("Report: reading sheet status snapshot...")
+    snap = sheets_db.snapshot_status(svc, SPREADSHEET_ID)
+    counts = Counter(v["reply_status"] for v in snap.values() if v.get("reply_status"))
+
+    contacted = sum(counts.values())               # distinct people with any status set
+    sql       = counts.get("SQL", 0)
+    replied   = counts.get("Replied", 0) + sql      # an SQL is an interested reply
+    bounced   = counts.get("Bounced", 0)
+    unsub     = counts.get("Unsubscribed", 0)
+    customers = counts.get("Customer", 0)
+    awaiting  = counts.get("Contacted", 0)
+
+    dsc = state.get("daily_sent_count", {})
+    drc = state.get("daily_reply_count", {})
+    sent_total = sum(dsc.values())
+
+    def pct(n, d):
+        return f"{(100.0 * n / d):.1f}%" if d else "—"
+
+    subject = (f"[Vida Lead Dashboard] {today} — {sql} SQLs, "
+               f"{replied} replies, {sent_total:,} sent")
+    body = (
+        f"Vida — Get CPR Done outreach dashboard\n"
+        f"As of {today}\n"
+        f"{'=' * 46}\n\n"
+        f"PIPELINE (lifetime)\n"
+        f"  People reached:         {contacted:,}\n"
+        f"  Replies:                {replied:,}  ({pct(replied, contacted)} of reached)\n"
+        f"  Sales-Qualified Leads:  {sql:,}  ({pct(sql, contacted)} of reached)\n"
+        f"  Still awaiting reply:   {awaiting:,}\n"
+        f"  Existing customers routed to Manae: {customers:,}\n\n"
+        f"DELIVERABILITY (lifetime)\n"
+        f"  Emails sent (all touches): {sent_total:,}\n"
+        f"  Hard bounces:   {bounced:,}  ({pct(bounced, contacted)})\n"
+        f"  Unsubscribes:   {unsub:,}  ({pct(unsub, contacted)})\n\n"
+        f"LAST 7 DAYS\n"
+        f"  Emails sent:    {_sum_recent(dsc, 7):,}\n"
+        f"  Replies:        {_sum_recent(drc, 7):,}\n\n"
+        f"TODAY ({today})\n"
+        f"  Emails sent:    {dsc.get(today, 0):,}\n"
+        f"  Replies:        {drc.get(today, 0):,}\n\n"
+        f"—Vida (automated). Full per-contact status is live in the tracking sheet.\n"
+    )
+
+    if dry_run:
+        log.info("[DRY RUN] Lead dashboard:\n" + body)
+        return
+    result = send_email(CHRIS_EMAIL, subject, body)
+    if result.get("success"):
+        log.info(f"Lead dashboard emailed to Chris ({sql} SQLs, {replied} replies)")
+    else:
+        log.error(f"Report send failed: {result.get('error')}")
+
 # ─── Entry point ──────────────────────────────────────────────────────────────
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--mode", choices=["daily","roster","reply_check","reconcile"], required=True)
+    parser.add_argument("--mode", choices=["daily","roster","reply_check","reconcile","report"], required=True)
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--force-weekday", action="store_true")
     parser.add_argument("--force", action="store_true")  # alias
@@ -1684,6 +1751,8 @@ def main():
         check_replies(state, dry_run=args.dry_run)
     elif args.mode == "reconcile":
         run_reconcile(dry_run=args.dry_run)
+    elif args.mode == "report":
+        run_report(dry_run=args.dry_run)
 
     log.info(f"=== Complete | {datetime.now().isoformat()} ===\n")
 

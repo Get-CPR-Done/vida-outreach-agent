@@ -10,6 +10,7 @@ on:
     - cron: "0 16 * * 1-5"    # daily batch     — M–F 9:00 AM PDT
     - cron: "5 16 * * 1"      # roster          — Monday 9:05 AM PDT
     - cron: "0 16,18,20,22,0 * * 1-5"  # reply_check — every 2 hrs 9AM–5PM PDT
+    - cron: "0 2 * * *"       # lead dashboard  — daily 7:00 PM PDT (02:00 UTC). Weekly? -> "0 2 * * 1"
 
   workflow_dispatch:
     inputs:
@@ -23,6 +24,7 @@ on:
           - roster
           - reply_check
           - reconcile
+          - report
       dry_run:
         description: "Dry run (no emails sent)"
         required: false
@@ -76,6 +78,8 @@ jobs:
               echo "mode=roster" >> $GITHUB_OUTPUT
             elif [ "$MINUTE" = "00" ] && [ "$HOUR" = "16" ]; then
               echo "mode=daily" >> $GITHUB_OUTPUT
+            elif [ "$MINUTE" = "00" ] && [ "$HOUR" = "02" ]; then
+              echo "mode=report" >> $GITHUB_OUTPUT
             else
               echo "mode=reply_check" >> $GITHUB_OUTPUT
             fi

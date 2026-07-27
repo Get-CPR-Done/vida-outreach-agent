@@ -92,10 +92,10 @@ GEN_MODEL = "claude-haiku-4-5"
 
 # Scheduling link used as the call-to-action in Vida's emails (Manae's public
 # HubSpot meetings link — safe to hardcode; env var can override).
-MANAE_CALENDAR_LINK = os.environ.get(
-    "MANAE_CALENDAR_LINK",
-    "https://meetings.hubspot.com/manae-deguchi?uuid=76b99631-517e-4aa3-baa3-537375a5db77",
-)
+# NOTE: `or` (not a get-default) so an empty env var — which the workflow sets when
+# the optional secret is absent — still falls back to the real hardcoded link.
+MANAE_CALENDAR_LINK = os.environ.get("MANAE_CALENDAR_LINK") or \
+    "https://meetings.hubspot.com/manae-deguchi?uuid=76b99631-517e-4aa3-baa3-537375a5db77"
 
 INDUSTRY_MAP = [
     (["school","academy","learning","education","elementary","preschool","montessori","kipp","charter"],

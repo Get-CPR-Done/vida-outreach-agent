@@ -49,6 +49,11 @@ CHRIS_EMAIL   = "chris@getcprdone.com"
 SENDING_NAME  = "Vida Monroe"
 COMPANY_NAME  = "Get CPR Done"
 
+# Chris-confirmed, TRUE credibility line Vida may cite (especially the touch-3 value
+# email). Deliberately non-specific — no invented schools, names, or exact numbers.
+PROOF_POINT   = ("we've trained thousands of people across the country — teachers, school "
+                 "and childcare staff, camp staff, and workplace teams")
+
 # Daily send cap. 750/day is the target (working through the full list roughly
 # quarterly). Runs unattended on GitHub Actions, so the send spacing is tightened
 # to fit the 6-hour job limit (750 * ~15s avg ≈ 3.1h). Single mailbox — Google's
@@ -713,9 +718,11 @@ def generate_emails_batch(contacts):
         "  1 = first email — the consultative opener described above.\n"
         "  2 = short follow-up (2-3 sentences) gently resurfacing the first note; assume "
         "they may have missed it, no guilt-trip.\n"
-        "  3 = value email — share the KIND of outcome we typically deliver (we take the "
-        "compliance coordination off their plate; staff who are genuinely ready in an "
-        "emergency). Do NOT invent specific schools, names, numbers, or testimonials.\n"
+        f"  3 = value email — you may cite this TRUE proof point (tailor which audience you "
+        f"emphasize to their org type): \"{PROOF_POINT}\". Then share the KIND of outcome we "
+        "typically deliver (we take the compliance coordination off their plate; staff who "
+        "are genuinely ready in an emergency). Do NOT invent specific schools, names, "
+        "numbers, or testimonials beyond that proof point.\n"
         "  4 = soft breakup — brief and gracious ('I'll stop reaching out; the door's open "
         "anytime'), stay warm, no pressure.\n"
         "For touches 2-4 keep it shorter than touch 1 and reference that you're following "

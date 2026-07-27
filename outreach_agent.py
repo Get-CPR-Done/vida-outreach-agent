@@ -59,6 +59,15 @@ BATCH_SIZE    = 750
 MIN_DELAY_SEC = 10
 MAX_DELAY_SEC = 20
 
+# Multi-touch email cadence (per SellingSara: outbound is 12-15 touches / building
+# familiarity, not one-and-done). Email is Vida's only channel, so ~4 email touches
+# over ~2 weeks. Gap in DAYS before the next touch, keyed by touches already sent:
+# t1->t2 +3 (day 3), t2->t3 +4 (day 7), t3->t4 +7 (day 14). A reply/bounce/unsub
+# ends the sequence (row is no longer reply_status == "Contacted").
+FOLLOWUP_GAP_DAYS   = {1: 3, 2: 4, 3: 7}
+MAX_TOUCHES         = 4
+FOLLOWUP_STALE_DAYS = 30   # don't resurrect a contact whose last touch is older than this
+
 STATE_FILE = Path(__file__).parent / "state.json"
 LOG_FILE   = Path(__file__).parent / "outreach.log"
 
@@ -376,6 +385,65 @@ def fetch_sheet_contacts(svc, state, needed, extra_skip=None):
     )
     return contacts, cursor, skipped_roles
 
+
+def _due_for_followup(c, today):
+    """True if a contacted row is due for its next touch in the email cadence.
+    Requires reply_status still 'Contacted' (a reply/bounce/unsub ends the sequence),
+    a numeric touch 1-3 (reconciled rows have blank touches → excluded), and the last
+    touch within [gap, STALE] days (due, but not ancient)."""
+    if c.get("reply_status") != "Contacted":
+        return False
+    try:
+        t = int(c.get("touches") or 0)
+    except (TypeError, ValueError):
+        return False
+    if t < 1 or t >= MAX_TOUCHES:
+        return False
+    try:
+        sent = date.fromisoformat((c.get("date_sent") or "")[:10])
+    except ValueError:
+        return False
+    days = (today - sent).days
+    return FOLLOWUP_GAP_DAYS.get(t, 999) <= days <= FOLLOWUP_STALE_DAYS
+
+
+def fetch_followups(svc, state, needed):
+    """Scan the already-contacted region (rows 2..cursor) for rows due for their
+    next cadence touch. Returns contacts tagged with the touch number to send next."""
+    cursor = int(state.get("sheet_cursor", 2) or 2)
+    today = date.today()
+    out = []
+    row = 2
+    WINDOW = 1000
+    while row < cursor and len(out) < needed:
+        count = min(WINDOW, cursor - row)
+        rows, last = sheets_db.read_window(svc, SPREADSHEET_ID, row, count)
+        if last < row:
+            break
+        for c in rows:
+            if c["do_not_contact"].lower() in ("yes", "true", "1", "y"):
+                continue
+            if not _due_for_followup(c, today):
+                continue
+            out.append({
+                "row": c["row"],
+                "email": c["email"],
+                "firstName": normalize_name(c["first_name"]),
+                "lastName": normalize_name(c["last_name"]),
+                "firstNameRaw": c["first_name"],
+                "lastNameRaw": c["last_name"],
+                "company": c["company"],
+                "tags": c["tags"],
+                "sourceList": c["source_list"],
+                "is_role": is_role_address(c["email"]),
+                "touch": int(c["touches"]) + 1,
+            })
+            if len(out) >= needed:
+                break
+        row = last + 1
+    log.info(f"  Follow-up scan (rows 2-{cursor - 1}): {len(out)} due for next touch")
+    return out
+
 # ─── HubSpot ──────────────────────────────────────────────────────────────────
 
 def check_hubspot(contact, retries=3):
@@ -641,6 +709,17 @@ def generate_emails_batch(contacts):
         "  - Readiness gap: certified on paper, but would the team freeze under real pressure?\n"
         "  - Annual scramble: compliance handled last-minute once a year by whoever has bandwidth.\n"
         "  - Customization: generic CPR training doesn't fit their specific environment and risks.\n\n"
+        "TOUCH (each contact has a 'touch' number 1-4 in a multi-email sequence):\n"
+        "  1 = first email — the consultative opener described above.\n"
+        "  2 = short follow-up (2-3 sentences) gently resurfacing the first note; assume "
+        "they may have missed it, no guilt-trip.\n"
+        "  3 = value email — share the KIND of outcome we typically deliver (we take the "
+        "compliance coordination off their plate; staff who are genuinely ready in an "
+        "emergency). Do NOT invent specific schools, names, numbers, or testimonials.\n"
+        "  4 = soft breakup — brief and gracious ('I'll stop reaching out; the door's open "
+        "anytime'), stay warm, no pressure.\n"
+        "For touches 2-4 keep it shorter than touch 1 and reference that you're following "
+        "up. Every touch still ends with the call-to-action below.\n\n"
         "SHARED / ROLE INBOXES: when a contact's addressType is 'shared/role inbox' "
         "(e.g. info@, office@, support@ — often monitored by a real person at smaller "
         "orgs), do NOT use a personal name or invent one. Open warmly and a little "
@@ -681,6 +760,7 @@ def generate_emails_batch(contacts):
         industry = infer_industry(c.get("company", ""), c.get("tags", []))
         contact_list.append({
             "index": i,
+            "touch": c.get("touch", 1),
             "email": c.get("email", ""),
             "addressType": "shared/role inbox" if c.get("is_role") else "individual",
             "firstName": c.get("firstNameRaw") or c.get("firstName") or "",
@@ -973,6 +1053,36 @@ def hubspot_upsert_sql(email, first="", last="", company=""):
         log.warning(f"    HubSpot SQL upsert failed for {email}: {e}")
         return False
 
+def draft_air_reply(subject, body_text):
+    """Draft a suggested A-I-R reply (Acknowledge / Insert Value / Re-engage) for Manae
+    to review and send. Returns '' on failure (the forward still goes out)."""
+    try:
+        payload = {
+            "model": GEN_MODEL,
+            "max_tokens": 400,
+            "system": (
+                f"You are {SENDING_NAME} at {COMPANY_NAME} (CPR/First Aid training). Draft a "
+                "SHORT suggested reply for a human teammate to review and send to a prospect "
+                "who just replied. Use the A-I-R framework: (A) Acknowledge their message "
+                "warmly; (I) Insert Value — address their point (common ones: no budget yet, "
+                "board/committee approval, a leadership transition, or only needing coverage "
+                "part of the year) and reassure without pressure, never quote a price; "
+                "(R) Re-engage with one concrete next step — offer a quick 15-minute call and "
+                "the scheduling link. Consultative, warm, no hard close, no exclamation points, "
+                "3-5 sentences. "
+                + (f"Scheduling link: {MANAE_CALENDAR_LINK}. " if MANAE_CALENDAR_LINK else "")
+                + "Return ONLY the suggested email body."
+            ),
+            "messages": [{"role": "user", "content": f"Prospect reply — Subject: {subject}\n\n{body_text[:1500]}"}],
+        }
+        headers = {"Content-Type": "application/json", "x-api-key": ANTHROPIC_API_KEY,
+                   "anthropic-version": "2023-06-01"}
+        data = http_post("https://api.anthropic.com/v1/messages", headers, payload, timeout=120)
+        return next((b["text"] for b in data.get("content", []) if b.get("type") == "text"), "").strip()
+    except Exception as e:
+        log.warning(f"  A-I-R draft failed: {e}")
+        return ""
+
 # ─── Reply check ──────────────────────────────────────────────────────────────
 
 def classify_reply(sender, subject, body_text):
@@ -1141,13 +1251,19 @@ def check_replies(state, dry_run=False):
                                  last_result="replied (not SQL)")
                         tag = "reply"
 
+                    draft = draft_air_reply(subject, body_text) if not dry_run else ""
+                    draft_block = (
+                        "\nSuggested reply (A-I-R draft — review/edit before sending):\n"
+                        f"---\n{draft}\n---\n" if draft else ""
+                    )
                     fwd_subject = f"[CPR Lead {tag}] {sender}"
                     fwd_body = (
                         f"Hi Manae,\n\nNew reply to Vida's outreach email"
                         f"{' — flagged as a Sales-Qualified Lead and created in HubSpot' if interested else ''}.\n\n"
                         f"From: {sender}\nSubject: {subject}\n"
                         f"Vida's read: {'INTERESTED — ' + reason if interested else 'genuine reply, no clear booking intent'}\n"
-                        f"---\n{body_text[:800]}\n---\n\n—Outreach Agent (automated)"
+                        f"---\n{body_text[:800]}\n---\n"
+                        f"{draft_block}\n—Outreach Agent (automated)"
                     )
                     if not dry_run:
                         send_email(MANAE_EMAIL, fwd_subject, fwd_body, cc=CHRIS_EMAIL)
@@ -1256,27 +1372,40 @@ def run_daily(dry_run=False, limit=None):
         svc = _sheet_service()
         sheets_db.ensure_headers(svc, SPREADSHEET_ID)
 
-        # 1 — Source eligible contacts from the sheet (cursor-based scan)
-        candidates, new_cursor, skipped_roles = fetch_sheet_contacts(svc, state, remaining)
+        # 1 — Source: follow-ups first (warmer + time-sensitive), then new contacts
+        #     from the cursor to fill the rest of today's cap. Each carries a `touch`.
+        followups = fetch_followups(svc, state, remaining)
+        new_needed = remaining - len(followups)
+        new_contacts = []
+        new_cursor = int(state.get("sheet_cursor", 2) or 2)
+        skipped_roles = []
+        if new_needed > 0:
+            new_contacts, new_cursor, skipped_roles = fetch_sheet_contacts(svc, state, new_needed)
+        for c in new_contacts:
+            c["touch"] = 1
+        candidates = followups + new_contacts
         if not candidates:
-            log.info("No eligible contacts left at the current sheet cursor.")
+            log.info("Nothing due: no follow-ups and no new contacts at the cursor.")
             if not dry_run:
                 state["sheet_cursor"] = new_cursor
                 save_state(state)
             if already_sent > 0:
                 send_eod_report(already_sent, 0, [], [], skipped_roles, dry_run, state=state)
             return
+        log.info(f"Queued {len(followups)} follow-ups + {len(new_contacts)} new = {len(candidates)}")
 
-        # 2 — HubSpot cross-check: peel existing customers off to Manae.
-        # On an unresolved HubSpot lookup (API error after retries) SKIP the contact
-        # rather than risk emailing a customer — it's retried on the next run.
+        # 2 — HubSpot cross-check: peel existing customers off to Manae. On an
+        # unresolved lookup (API error after retries) SKIP rather than risk emailing a
+        # customer. An unresolved NEW contact holds the cursor; follow-ups just retry
+        # next run (they stay due).
         prospects = []
         customers = []
-        skipped_unresolved = []
+        skipped_new_rows = []
         for c in candidates:
             hs = check_hubspot(c)
             if hs.get("error"):
-                skipped_unresolved.append(c["row"])
+                if c.get("touch", 1) == 1:
+                    skipped_new_rows.append(c["row"])
                 continue
             if hs.get("isCustomer"):
                 customers.append({"contact": c, "hubspot": hs})
@@ -1291,10 +1420,10 @@ def run_daily(dry_run=False, limit=None):
             state["manae_roster_pending"] = state.get("manae_roster_pending", []) + customers
             save_state(state)
         log.info(f"Routing: {len(prospects)} prospects, {len(customers)} customers → Manae, "
-                 f"{len(skipped_unresolved)} unresolved (HubSpot) → retry next run")
+                 f"{len(skipped_new_rows)} unresolved (HubSpot) → retry next run")
 
-        # 3 — Generate emails in batches
-        to_send = prospects[:remaining]
+        # 3 — Generate emails in batches (each carries its touch number 1-4)
+        to_send = prospects
         log.info(f"Generating {len(to_send)} emails in batches of {GENERATION_BATCH_SIZE}...")
         generated = []
         for start in range(0, len(to_send), GENERATION_BATCH_SIZE):
@@ -1309,6 +1438,7 @@ def run_daily(dry_run=False, limit=None):
         log.info(f"Sending {len(to_send)} emails...")
         for i, (contact, ed) in enumerate(zip(to_send, generated)):
             email       = contact.get("email", "")
+            touch       = contact.get("touch", 1)
             subject     = ed.get("subject", FALLBACK_SUBJECT)
             body        = ed.get("body", fallback_body(contact))
             clean_first = (ed.get("clean_first_name") or "").strip()
@@ -1321,40 +1451,36 @@ def run_daily(dry_run=False, limit=None):
             if clean_last and clean_last != contact.get("lastNameRaw", ""):
                 name_updates["last"] = clean_last
 
-            log.info(f"Sending {i+1}/{len(to_send)} (row {row}): {subject}")
+            log.info(f"Sending {i+1}/{len(to_send)} (row {row}, touch {touch}): {subject}")
 
             if dry_run:
-                log.info(f"  [DRY RUN] Would send. clean_first={clean_first!r} clean_last={clean_last!r}")
+                log.info(f"  [DRY RUN] Would send touch {touch}. clean_first={clean_first!r}")
                 continue
 
             result = send_email(email, subject, body)
             if result.get("success"):
-                contacted.add(email.lower())
                 today_sent    += 1
                 sent_this_run += 1
                 sheets_db.update_row(
                     svc, SPREADSHEET_ID, row,
                     contacted=today, date_sent=today, reply_status="Contacted",
-                    touches=1, last_result="sent", **name_updates)
-                log.info(f"  ✓ Sent ({today_sent}/{cap} today)")
+                    touches=touch, last_result=f"sent (touch {touch})", **name_updates)
+                log.info(f"  ✓ Sent touch {touch} ({today_sent}/{cap} today)")
             elif result.get("hard_bounce"):
                 err = str(result.get("error", "unknown"))
                 log.warning(f"  ✗ Hard bounce (row {row}): {err}")
                 do_not_contact.add(email.lower())
-                contacted.add(email.lower())
                 today_bounces.append(email)
                 sheets_db.update_row(
                     svc, SPREADSHEET_ID, row,
                     contacted=today, date_sent=today, reply_status="Bounced",
-                    do_not_contact="yes", touches=1,
+                    do_not_contact="yes", touches=touch,
                     last_result=f"hard bounce: {err}"[:250], **name_updates)
             else:
                 err = result.get("error", "unknown")
-                log.error(f"  ✗ Failed: {err}")
-                notify_chris(f"Send failed for {email}", err)
+                log.error(f"  ✗ Failed (row {row}): {err}")
+                notify_chris(f"Send failed (row {row})", err)
 
-            state["contacted_emails"] = list(contacted)
-            state["do_not_contact"]   = list(do_not_contact)
             daily_counts[today]       = today_sent
             state["daily_sent_count"] = daily_counts
             save_state(state)
@@ -1362,18 +1488,21 @@ def run_daily(dry_run=False, limit=None):
             if i < len(to_send) - 1:
                 time.sleep(random.randint(MIN_DELAY_SEC, MAX_DELAY_SEC))
 
-        # Advance the cursor past everything we resolved this run, but hold it at the
-        # first HubSpot-unresolved row so those get retried on the next run.
+        # Advance the cursor past new contacts consumed this run, holding it at the
+        # first HubSpot-unresolved NEW row so those retry next run. Follow-ups don't
+        # move the cursor — they're re-found by the follow-up scan.
         if not dry_run:
             resume_at = new_cursor
-            if skipped_unresolved:
-                resume_at = min(new_cursor, min(skipped_unresolved))
+            if skipped_new_rows:
+                resume_at = min(new_cursor, min(skipped_new_rows))
                 log.info(f"  Cursor held at row {resume_at} to retry "
-                         f"{len(skipped_unresolved)} unresolved contact(s) next run")
+                         f"{len(skipped_new_rows)} unresolved new contact(s) next run")
             state["sheet_cursor"] = resume_at
             save_state(state)
 
-        log.info(f"Daily run complete. {sent_this_run} sent this run ({today_sent} total today).")
+        fu = sum(1 for c in to_send if c.get("touch", 1) > 1)
+        log.info(f"Daily run complete. {sent_this_run} sent this run "
+                 f"({today_sent} total today; {fu} were follow-ups).")
         send_eod_report(
             sent_count=today_sent, bounce_count=len(today_bounces),
             bounce_list=today_bounces, replacement_queue=[],

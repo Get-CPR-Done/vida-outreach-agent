@@ -117,8 +117,10 @@ def parse_row(row_number, row):
         "source_list": _cell(row, COL["source_list"]),
         "sub_status": _cell(row, COL["sub_status"]).lower(),
         "contacted": _cell(row, COL["contacted"]),
+        "date_sent": _cell(row, COL["date_sent"]),
         "reply_status": _cell(row, COL["reply_status"]),
         "do_not_contact": _cell(row, COL["do_not_contact"]),
+        "touches": _cell(row, COL["touches"]),
     }
 
 

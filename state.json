@@ -2,35 +2,8 @@
   "contacted_emails": [],
   "sent_thread_ids": [],
   "forwarded_thread_ids": [],
-  "manae_roster_pending": [
-    {
-      "contact": {
-        "row": 3,
-        "email": "infomontessori@gmail.com",
-        "firstName": "Crisman",
-        "lastName": "Pamela",
-        "firstNameRaw": "CRISMAN",
-        "lastNameRaw": "PAMELA",
-        "company": "",
-        "tags": [
-          "Childcare Centers",
-          "DAY CARE CENTER"
-        ],
-        "sourceList": "CA Orgs (Child Facing)"
-      },
-      "hubspot": {
-        "found": true,
-        "isCustomer": true,
-        "name": "None None",
-        "company": null,
-        "lastDealName": null,
-        "lastDealValue": 0,
-        "lastDealDate": null,
-        "lifecycleStage": "customer"
-      }
-    }
-  ],
-  "last_roster_send": null,
+  "manae_roster_pending": [],
+  "last_roster_send": "2026-07-27",
   "daily_sent_count": {
     "2026-06-12": 497,
     "2026-06-15": 283,

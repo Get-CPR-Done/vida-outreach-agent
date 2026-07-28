@@ -46,6 +46,7 @@ import sheets_db
 VIDA_EMAIL    = "vida@getcprdone.com"
 MANAE_EMAIL   = "Manae@GetCPRDone.com"
 CHRIS_EMAIL   = "chris@getcprdone.com"
+REPORT_EMAIL  = "chris@joffeemergencyservices.com"   # lead dashboard → Chris's main inbox
 SENDING_NAME  = "Vida Monroe"
 COMPANY_NAME  = "Get CPR Done"
 
@@ -994,22 +995,28 @@ def parse_from(sender):
 
 def classify_interest(subject, body_text):
     """
-    Decide whether an inbound reply shows interest in booking/scheduling/pricing
-    CPR training (i.e. a sales-qualified lead). Returns (interested: bool, reason).
-    On any error, returns (False, ...) — the Manae forward is the safety net, so
-    we never manufacture a false SQL in HubSpot.
+    Triage a genuine-looking inbound reply. Returns (is_auto, interested, reason).
+      is_auto  = an automated / no-action message (auto-acknowledgment, 'thanks for
+                 reaching out' autoresponder, email-address-change or 'update your
+                 records' notice, ticket/case confirmation) that Manae does NOT need.
+      interested = a genuine human showing booking/scheduling/pricing interest (SQL).
+    On error, returns (False, False, ...) so a real reply is still forwarded (safe).
     """
     try:
         payload = {
             "model": GEN_MODEL,
             "max_tokens": 150,
             "system": (
-                "You triage inbound replies to a CPR-training outreach email. "
-                "Decide if the sender shows ANY interest in booking, scheduling, pricing, "
-                "availability, or learning more (a sales-qualified lead). "
-                'Return ONLY JSON: {"interested": true|false, "reason": "<=12 words"}. '
-                "Questions about price/availability/scheduling count as interested. "
-                "Pure rejections, 'no thanks', 'remove me', or unrelated do not."
+                "You triage inbound replies to a CPR-training outreach email. Return ONLY "
+                'JSON: {"auto": true|false, "interested": true|false, "reason": "<=12 words"}.\n'
+                "auto = true for anything a salesperson does NOT need to act on: automated "
+                "acknowledgments ('thank you for reaching out', 'we received your message'), "
+                "out-of-office, email-address-change or 'please update your records' notices, "
+                "ticket/case confirmations, no-reply/bulk system messages. "
+                "auto = false for a genuine human reply.\n"
+                "interested = true ONLY if a genuine human shows any interest in booking, "
+                "scheduling, pricing, availability, or learning more. Pure rejections, "
+                "'no thanks', 'remove me', or unrelated = false."
             ),
             "messages": [{"role": "user", "content": f"Subject: {subject}\n\n{body_text[:1500]}"}],
         }
@@ -1023,10 +1030,10 @@ def classify_interest(subject, body_text):
             if cleaned.startswith("json"):
                 cleaned = cleaned[4:]
         r = json.loads(cleaned.strip())
-        return bool(r.get("interested")), r.get("reason", "")
+        return bool(r.get("auto")), bool(r.get("interested")), r.get("reason", "")
     except Exception as e:
-        log.warning(f"  Interest classification failed: {e} — not flagging as SQL (Manae still gets it)")
-        return False, "classifier error"
+        log.warning(f"  Reply triage failed: {e} — forwarding to Manae to be safe")
+        return False, False, "classifier error"
 
 def hubspot_upsert_sql(email, first="", last="", company=""):
     """Create or update a HubSpot contact as a Sales Qualified Lead. Needs write scope."""
@@ -1208,6 +1215,14 @@ def check_replies(state, dry_run=False):
                     body_text = msg.get_payload(decode=True).decode(errors="replace")
 
                 sender_name, sender_email = parse_from(sender)
+                # RFC-3834 / common autoresponder headers — a cheap, reliable auto signal
+                auto_hdr   = (msg.get("Auto-Submitted", "") or "").lower()
+                precedence = (msg.get("Precedence", "") or "").lower()
+                is_auto_header = (
+                    "auto-replied" in auto_hdr or "auto-generated" in auto_hdr
+                    or "auto_reply" in precedence
+                    or bool(msg.get("X-Autoreply")) or bool(msg.get("X-Autorespond"))
+                )
                 kind = classify_reply(sender, subject, body_text)
 
                 if kind == "bounce":
@@ -1240,7 +1255,19 @@ def check_replies(state, dry_run=False):
                     archived_count += 1
 
                 elif kind == "genuine":
-                    interested, reason = classify_interest(subject, body_text)
+                    if is_auto_header:
+                        log.info(f"  Auto-reply header from {redact_email(sender_email)} — archiving, not forwarding")
+                        if not dry_run:
+                            archive_message(mail, mid)
+                        archived_count += 1
+                        continue
+                    auto, interested, reason = classify_interest(subject, body_text)
+                    if auto:
+                        log.info(f"  Auto-reply from {redact_email(sender_email)} — archiving, not forwarding")
+                        if not dry_run:
+                            archive_message(mail, mid)
+                        archived_count += 1
+                        continue
                     first = (sender_name.split()[0] if sender_name else "")
                     last  = (sender_name.split()[-1] if len(sender_name.split()) > 1 else "")
 
@@ -1708,9 +1735,9 @@ def run_report(dry_run=False):
     if dry_run:
         log.info("[DRY RUN] Lead dashboard:\n" + body)
         return
-    result = send_email(CHRIS_EMAIL, subject, body)
+    result = send_email(REPORT_EMAIL, subject, body)
     if result.get("success"):
-        log.info(f"Lead dashboard emailed to Chris ({sql} SQLs, {replied} replies)")
+        log.info(f"Lead dashboard emailed to {REPORT_EMAIL} ({sql} SQLs, {replied} replies)")
     else:
         log.error(f"Report send failed: {result.get('error')}")
 

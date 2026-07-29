@@ -837,7 +837,7 @@ def generate_email(contact):
 
 # ─── Gmail SMTP ───────────────────────────────────────────────────────────────
 
-def send_gmail_smtp(to, subject, body, cc=None):
+def send_gmail_smtp(to, subject, body, cc=None, html=None):
     import smtplib
     from email.mime.text import MIMEText
     from email.mime.multipart import MIMEMultipart
@@ -849,7 +849,7 @@ def send_gmail_smtp(to, subject, body, cc=None):
         log.error("  GMAIL_ADDRESS or GMAIL_APP_PASSWORD not set")
         return {"success": False, "error": "Gmail credentials not configured"}
 
-    msg = MIMEMultipart()
+    msg = MIMEMultipart("alternative") if html else MIMEMultipart()
     msg["From"]    = f"{SENDING_NAME} <{gmail_user}>"
     msg["To"]      = to
     msg["Subject"] = subject
@@ -858,6 +858,8 @@ def send_gmail_smtp(to, subject, body, cc=None):
 
     full_body = body if SENDING_NAME in body else body + f"\n\n{SENDING_NAME} | {COMPANY_NAME}"
     msg.attach(MIMEText(full_body, "plain"))
+    if html:                       # HTML part last = clients prefer it, plain is the fallback
+        msg.attach(MIMEText(html, "html"))
 
     recipients = [to] + ([cc] if cc else [])
     try:
@@ -1001,12 +1003,13 @@ def parse_from(sender):
 
 def classify_interest(subject, body_text):
     """
-    Triage a genuine-looking inbound reply. Returns (is_auto, interested, reason).
-      is_auto  = an automated / no-action message (auto-acknowledgment, 'thanks for
-                 reaching out' autoresponder, email-address-change or 'update your
-                 records' notice, ticket/case confirmation) that Manae does NOT need.
-      interested = a genuine human showing booking/scheduling/pricing interest (SQL).
-    On error, returns (False, False, ...) so a real reply is still forwarded (safe).
+    Triage a genuine-looking inbound reply. Returns (is_auto, opt_out, interested, reason).
+      is_auto    = automated / no-action message (auto-ack, OOO, email-change notice,
+                   ticket confirmation) that Manae does NOT need.
+      opt_out    = the person wants off the list (stop / remove me / unsubscribe).
+      interested = a genuine human showing ANY curiosity or engagement = a sales-qualified
+                   lead (broad, per our SDR playbook — not just explicit booking).
+    On error, returns (False, False, False, ...) so a real reply is still forwarded.
     """
     try:
         payload = {
@@ -1014,15 +1017,19 @@ def classify_interest(subject, body_text):
             "max_tokens": 150,
             "system": (
                 "You triage inbound replies to a CPR-training outreach email. Return ONLY "
-                'JSON: {"auto": true|false, "interested": true|false, "reason": "<=12 words"}.\n'
-                "auto = true for anything a salesperson does NOT need to act on: automated "
-                "acknowledgments ('thank you for reaching out', 'we received your message'), "
-                "out-of-office, email-address-change or 'please update your records' notices, "
-                "ticket/case confirmations, no-reply/bulk system messages. "
-                "auto = false for a genuine human reply.\n"
-                "interested = true ONLY if a genuine human shows any interest in booking, "
-                "scheduling, pricing, availability, or learning more. Pure rejections, "
-                "'no thanks', 'remove me', or unrelated = false."
+                'JSON: {"auto": bool, "opt_out": bool, "interested": bool, "reason": "<=12 words"}.\n'
+                "auto = an automated/no-action message (out-of-office, 'thanks for reaching "
+                "out' autoresponder, email-address-change or 'update your records' notice, "
+                "ticket/case confirmation, no-reply/bulk). false for a genuine human reply.\n"
+                "opt_out = the person asks to be removed / stop emailing / unsubscribe / "
+                "'take me off your list' / 'stop' / 'do not contact us'.\n"
+                "interested = a genuine human showing ANY curiosity or engagement — this is a "
+                "sales-qualified lead and the bar is BROAD: 'tell me more', a question about "
+                "how it works / pricing / availability / scheduling, naming who handles this, "
+                "'send info', 'we might be interested', looping in a colleague, or anything "
+                "that opens a real conversation. Only a flat rejection ('not interested', "
+                "'no thanks'), an opt_out, or an auto/unrelated message is NOT interested. "
+                "When unsure between interested and not, lean interested — a human reviews it."
             ),
             "messages": [{"role": "user", "content": f"Subject: {subject}\n\n{body_text[:1500]}"}],
         }
@@ -1036,10 +1043,10 @@ def classify_interest(subject, body_text):
             if cleaned.startswith("json"):
                 cleaned = cleaned[4:]
         r = json.loads(cleaned.strip())
-        return bool(r.get("auto")), bool(r.get("interested")), r.get("reason", "")
+        return bool(r.get("auto")), bool(r.get("opt_out")), bool(r.get("interested")), r.get("reason", "")
     except Exception as e:
         log.warning(f"  Reply triage failed: {e} — forwarding to Manae to be safe")
-        return False, False, "classifier error"
+        return False, False, False, "classifier error"
 
 def hubspot_upsert_sql(email, first="", last="", company=""):
     """Create or update a HubSpot contact as a Sales Qualified Lead. Needs write scope."""
@@ -1138,11 +1145,13 @@ def classify_reply(sender, subject, body_text):
     ]):
         return "ooo"
 
-    # Unsubscribe / opt-out
-    if any(k in subject_l for k in [
-        "unsubscribe", "remove me", "opt out", "opt-out",
-        "stop emailing", "please remove", "take me off",
-    ]):
+    # Unsubscribe / opt-out — check subject AND the first lines of the body
+    unsub_phrases = [
+        "unsubscribe", "remove me", "remove us", "opt out", "opt-out", "take me off",
+        "take us off", "please remove", "no longer wish", "do not contact",
+        "stop emailing", "stop contacting", "please stop",
+    ]
+    if any(k in subject_l for k in unsub_phrases) or any(k in body_l[:400] for k in unsub_phrases):
         return "unsubscribe"
 
     return "genuine"
@@ -1269,11 +1278,23 @@ def check_replies(state, dry_run=False):
                             archive_message(mail, mid)
                         archived_count += 1
                         continue
-                    auto, interested, reason = classify_interest(subject, body_text)
+                    auto, opt_out, interested, reason = classify_interest(subject, body_text)
                     if auto:
                         log.info(f"  Auto-reply from {redact_email(sender_email)} — archiving, not forwarding")
                         if not dry_run:
                             archive_message(mail, mid)
+                        archived_count += 1
+                        continue
+                    if opt_out:
+                        log.info(f"  Opt-out reply from {redact_email(sender_email)} — unsubscribing + blocking")
+                        if sender_email:
+                            do_not_contact.add(sender_email)
+                            mark_row(sender_email, reply_status="Unsubscribed",
+                                     do_not_contact="yes", last_result="opt-out (reply)")
+                        if not dry_run:
+                            archive_message(mail, mid)
+                            _bump(state, "daily_unsub_count")
+                        unsubscribe_count += 1
                         archived_count += 1
                         continue
                     first = (sender_name.split()[0] if sender_name else "")
@@ -1761,10 +1782,46 @@ def run_report(dry_run=False):
         f"\n—Vida (automated). Full per-contact status is in the tracking sheet.\n"
     )
 
+    # HTML version (a real table so the columns hold their shape in email clients)
+    def hrow(label, t, w, life, hi=False):
+        bg = " background:#f7fbff;" if hi else ""
+        return (f"<tr style='border-top:1px solid #e5e5e5;{bg}'>"
+                f"<td style='padding:6px 14px'>{label}</td>"
+                f"<td align='right' style='padding:6px 14px'>{t:,}</td>"
+                f"<td align='right' style='padding:6px 14px'>{w:,}</td>"
+                f"<td align='right' style='padding:6px 14px;font-weight:600'>{life:,}</td></tr>")
+    html = (
+        "<div style='font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#222'>"
+        f"<h2 style='margin:0 0 2px'>Vida — Get CPR Done outreach dashboard</h2>"
+        f"<div style='color:#888;margin-bottom:14px'>As of {today}</div>"
+        "<table style='border-collapse:collapse;font-size:14px;min-width:460px'>"
+        "<thead><tr style='background:#efefef'>"
+        "<th align='left' style='padding:8px 14px'>&nbsp;</th>"
+        "<th align='right' style='padding:8px 14px'>Today</th>"
+        "<th align='right' style='padding:8px 14px'>7 days</th>"
+        "<th align='right' style='padding:8px 14px'>Lifetime</th>"
+        "</tr></thead><tbody>"
+        + hrow("Emails sent (all touches)", dsc.get(today, 0), _sum_recent(dsc, 7), sent_total)
+        + hrow("New people reached", nc.get(today, 0), _sum_recent(nc, 7), contacted)
+        + hrow("Replies", drc.get(today, 0), _sum_recent(drc, 7), replied)
+        + hrow("Sales-Qualified Leads", sqc.get(today, 0), _sum_recent(sqc, 7), sql, hi=True)
+        + hrow("Existing customers &rarr; Manae", cc.get(today, 0), _sum_recent(cc, 7), customers)
+        + hrow("Hard bounces", bc.get(today, 0), _sum_recent(bc, 7), bounced)
+        + hrow("Unsubscribes", uc.get(today, 0), _sum_recent(uc, 7), unsub)
+        + "</tbody></table>"
+        f"<p style='margin:14px 0 4px'><b>Currently awaiting reply:</b> {awaiting:,}<br>"
+        f"<b>Lifetime reply rate:</b> {pct(replied, contacted)} &nbsp;&nbsp; "
+        f"<b>SQL rate:</b> {pct(sql, contacted)}</p>"
+        f"<p style='color:#999;font-size:12px;max-width:560px'>Per-day counters for reached / "
+        f"SQLs / bounces / unsubscribes began {today}, so the Today &amp; 7-day columns for "
+        f"those fill in over the coming days. Lifetime is exact (live tracking sheet).</p>"
+        "</div>"
+    )
+
     if dry_run:
         log.info("[DRY RUN] Lead dashboard:\n" + body)
         return
-    result = send_email(REPORT_EMAIL, subject, body)
+    result = send_email(REPORT_EMAIL, subject, body, html=html)
     if result.get("success"):
         log.info(f"Lead dashboard emailed to {REPORT_EMAIL} ({sql} SQLs, {replied} replies)")
     else:

@@ -70,19 +70,14 @@ jobs:
             echo "dry_run=${{ github.event.inputs.dry_run }}" >> $GITHUB_OUTPUT
             echo "limit=${{ github.event.inputs.limit }}" >> $GITHUB_OUTPUT
           else
-            # Determine mode from which cron fired based on current minute
-            MINUTE=$(date +%M)
-            HOUR=$(date +%H)
-            DOW=$(date +%u)   # 1=Monday
-            if [ "$MINUTE" = "05" ] && [ "$DOW" = "1" ]; then
-              echo "mode=roster" >> $GITHUB_OUTPUT
-            elif [ "$MINUTE" = "00" ] && [ "$HOUR" = "16" ]; then
-              echo "mode=daily" >> $GITHUB_OUTPUT
-            elif [ "$MINUTE" = "00" ] && [ "$HOUR" = "02" ]; then
-              echo "mode=report" >> $GITHUB_OUTPUT
-            else
-              echo "mode=reply_check" >> $GITHUB_OUTPUT
-            fi
+            # Map the EXACT cron that triggered this run. Delay-proof — unlike reading
+            # the wall clock, which breaks whenever GitHub fires a schedule late.
+            case "${{ github.event.schedule }}" in
+              "0 16 * * 1-5")  echo "mode=daily"       >> $GITHUB_OUTPUT ;;
+              "5 16 * * 1")    echo "mode=roster"      >> $GITHUB_OUTPUT ;;
+              "0 2 * * *")     echo "mode=report"      >> $GITHUB_OUTPUT ;;
+              *)               echo "mode=reply_check" >> $GITHUB_OUTPUT ;;
+            esac
             echo "dry_run=false" >> $GITHUB_OUTPUT
             echo "limit=" >> $GITHUB_OUTPUT
           fi

@@ -2,7 +2,38 @@
   "contacted_emails": [],
   "sent_thread_ids": [],
   "forwarded_thread_ids": [],
-  "manae_roster_pending": [],
+  "manae_roster_pending": [
+    {
+      "contact": {
+        "row": 939,
+        "email": "eperla@compass-sf.org",
+        "firstName": "Elizabeth",
+        "lastName": "Perla",
+        "firstNameRaw": "ELIZABETH",
+        "lastNameRaw": "PERLA",
+        "company": "",
+        "tags": [
+          "Childcare Centers",
+          "DAY CARE CENTER",
+          "SCHOOL AGE DAY CARE CENTER"
+        ],
+        "sourceList": "CA Orgs (Child Facing)",
+        "is_role": false,
+        "touch": 1
+      },
+      "hubspot": {
+        "found": true,
+        "isCustomer": true,
+        "name": "Elizabeth Perla",
+        "company": "Compass family services",
+        "lastDealName": "Compass Family Services: HSI Blended Pediatric First Aid | CPR/AED for All Ages (In-Person skills session: 3/13/2026)",
+        "lastDealValue": 945.0,
+        "lastDealDate": "2026-02-27",
+        "lifecycleStage": "customer",
+        "error": false
+      }
+    }
+  ],
   "last_roster_send": "2026-07-27",
   "daily_sent_count": {
     "2026-06-12": 497,
@@ -14,7 +45,8 @@
     "2026-07-08": 3,
     "2026-07-11": 287,
     "2026-07-26": 2,
-    "2026-07-27": 650
+    "2026-07-27": 650,
+    "2026-07-29": 748
   },
   "daily_reply_count": {
     "2026-06-15": 10,
@@ -48,5 +80,5 @@
   },
   "do_not_contact": [],
   "bounce_replacement_queue": [],
-  "sheet_cursor": 813
+  "sheet_cursor": 1585
 }

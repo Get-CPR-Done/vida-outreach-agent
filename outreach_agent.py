@@ -1742,6 +1742,7 @@ def run_report(dry_run=False):
     unsub     = counts.get("Unsubscribed", 0)
     customers = counts.get("Customer", 0)
     awaiting  = counts.get("Contacted", 0)
+    sql_list  = sorted(e for e, v in snap.items() if v.get("reply_status") == "SQL")
 
     dsc = state.get("daily_sent_count", {})
     drc = state.get("daily_reply_count", {})
@@ -1776,6 +1777,9 @@ def run_report(dry_run=False):
         + f"\n  Currently awaiting reply:  {awaiting:,}\n"
         + f"  Lifetime reply rate: {pct(replied, contacted)}   "
           f"SQL rate: {pct(sql, contacted)}\n\n"
+        + f"SALES-QUALIFIED LEADS ({len(sql_list)}) — confirm Manae has reached out:\n"
+        + (("\n".join(f"  - {e}" for e in sql_list)) if sql_list else "  (none yet)")
+        + "\n\n"
         f"Note: per-day counters for reached / SQLs / bounces / unsubscribes began\n"
         f"{today}, so the TODAY and 7-DAY columns for those build up over the coming\n"
         f"days. Emails-sent and replies are historical; LIFETIME is exact (live sheet).\n"
@@ -1812,7 +1816,12 @@ def run_report(dry_run=False):
         f"<p style='margin:14px 0 4px'><b>Currently awaiting reply:</b> {awaiting:,}<br>"
         f"<b>Lifetime reply rate:</b> {pct(replied, contacted)} &nbsp;&nbsp; "
         f"<b>SQL rate:</b> {pct(sql, contacted)}</p>"
-        f"<p style='color:#999;font-size:12px;max-width:560px'>Per-day counters for reached / "
+        f"<p style='margin:14px 0 4px'><b>Sales-Qualified Leads ({len(sql_list)})</b> "
+        f"&mdash; confirm Manae has reached out:</p>"
+        + ("<ul style='margin:4px 0 0;padding-left:22px'>"
+           + "".join(f"<li>{e}</li>" for e in sql_list) + "</ul>"
+           if sql_list else "<p style='color:#888'>(none yet)</p>")
+        + f"<p style='color:#999;font-size:12px;max-width:560px'>Per-day counters for reached / "
         f"SQLs / bounces / unsubscribes began {today}, so the Today &amp; 7-day columns for "
         f"those fill in over the coming days. Lifetime is exact (live tracking sheet).</p>"
         "</div>"

@@ -1389,6 +1389,12 @@ def run_daily(dry_run=False, limit=None):
     daily_counts = state.get("daily_sent_count", {})
     already_sent = daily_counts.get(today, 0)
 
+    # Mark that the daily send ran today, so the reply-check catch-up doesn't
+    # re-trigger it (belt-and-suspenders against GitHub dropping the 9am cron).
+    if not dry_run and state.get("last_daily_run") != today:
+        state["last_daily_run"] = today
+        save_state(state)
+
     cap = BATCH_SIZE if limit is None else min(BATCH_SIZE, limit)
     if already_sent >= cap:
         log.info(f"Daily cap reached ({already_sent}/{cap}). Exiting.")
@@ -1687,6 +1693,9 @@ def run_report(dry_run=False):
     from collections import Counter
     today = today_str()
     state = load_state()
+    if not dry_run and state.get("last_report_run") != today:
+        state["last_report_run"] = today
+        save_state(state)
     svc = _sheet_service()
     log.info("Report: reading sheet status snapshot...")
     snap = sheets_db.snapshot_status(svc, SPREADSHEET_ID)
@@ -1776,6 +1785,17 @@ def main():
         send_manae_roster(state, dry_run=args.dry_run)
     elif args.mode == "reply_check":
         check_replies(state, dry_run=args.dry_run)
+        # Self-healing: GitHub occasionally drops a scheduled run entirely. reply_check
+        # fires several times a day, so use it to catch up the daily send + dashboard if
+        # their own cron didn't fire today. Both self-guard (daily cap + last_*_run date),
+        # so this is safe to attempt on every reply-check.
+        if not args.dry_run:
+            if is_weekday() and load_state().get("last_daily_run") != today_str():
+                log.info("Catch-up: daily send hasn't run today — running it now.")
+                run_daily()
+            if load_state().get("last_report_run") != today_str():
+                log.info("Catch-up: dashboard hasn't run today — sending it now.")
+                run_report()
     elif args.mode == "reconcile":
         run_reconcile(dry_run=args.dry_run)
     elif args.mode == "report":

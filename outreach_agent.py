@@ -286,6 +286,12 @@ def is_monday():
 def today_str():
     return date.today().isoformat()
 
+def _bump(state, key, n=1):
+    """Increment a per-day counter state[key][today] by n (feeds the dashboard)."""
+    d = state.setdefault(key, {})
+    day = today_str()
+    d[day] = d.get(day, 0) + n
+
 def infer_industry(company="", tags=None):
     text = (company + " " + " ".join(tags or [])).lower()
     for keywords, context in INDUSTRY_MAP:
@@ -1235,6 +1241,7 @@ def check_replies(state, dry_run=False):
                                  last_result="hard bounce (inbox)")
                     if not dry_run:
                         archive_message(mail, mid)
+                        _bump(state, "daily_bounce_count")
                     archived_count += 1
 
                 elif kind == "ooo":
@@ -1251,6 +1258,7 @@ def check_replies(state, dry_run=False):
                                  do_not_contact="yes", last_result="unsubscribe request")
                     if not dry_run:
                         archive_message(mail, mid)
+                        _bump(state, "daily_unsub_count")
                     unsubscribe_count += 1
                     archived_count += 1
 
@@ -1275,6 +1283,7 @@ def check_replies(state, dry_run=False):
                         log.info(f"  SQL reply from {redact_email(sender_email)} ({reason}) → HubSpot + Manae")
                         if not dry_run:
                             hubspot_upsert_sql(sender_email, first, last)
+                            _bump(state, "daily_sql_count")
                         mark_row(sender_email, reply_status="SQL",
                                  last_result=f"SQL: {reason}"[:250])
                         tag = "SQL — booking interest"
@@ -1454,6 +1463,7 @@ def run_daily(dry_run=False, limit=None):
                         svc, SPREADSHEET_ID, c["row"],
                         contacted=today, date_sent=today, reply_status="Customer",
                         last_result="existing customer → Manae")
+                    _bump(state, "daily_customer_count")
             else:
                 prospects.append(c)
         if customers and not dry_run:
@@ -1505,6 +1515,8 @@ def run_daily(dry_run=False, limit=None):
                     svc, SPREADSHEET_ID, row,
                     contacted=today, date_sent=today, reply_status="Contacted",
                     touches=touch, last_result=f"sent (touch {touch})", **name_updates)
+                if touch == 1:
+                    _bump(state, "daily_new_count")     # a newly-reached person
                 log.info(f"  ✓ Sent touch {touch} ({today_sent}/{cap} today)")
             elif result.get("hard_bounce"):
                 err = str(result.get("error", "unknown"))
@@ -1516,6 +1528,7 @@ def run_daily(dry_run=False, limit=None):
                     contacted=today, date_sent=today, reply_status="Bounced",
                     do_not_contact="yes", touches=touch,
                     last_result=f"hard bounce: {err}"[:250], **name_updates)
+                _bump(state, "daily_bounce_count")
             else:
                 err = result.get("error", "unknown")
                 log.error(f"  ✗ Failed (row {row}): {err}")
@@ -1711,34 +1724,41 @@ def run_report(dry_run=False):
 
     dsc = state.get("daily_sent_count", {})
     drc = state.get("daily_reply_count", {})
+    nc  = state.get("daily_new_count", {})
+    sqc = state.get("daily_sql_count", {})
+    bc  = state.get("daily_bounce_count", {})
+    uc  = state.get("daily_unsub_count", {})
+    cc  = state.get("daily_customer_count", {})
     sent_total = sum(dsc.values())
 
     def pct(n, d):
         return f"{(100.0 * n / d):.1f}%" if d else "—"
 
-    subject = (f"[Vida Lead Dashboard] {today} — {sql} SQLs, "
-               f"{replied} replies, {sent_total:,} sent")
+    def r(label, t, w, life):
+        return f"  {label:<26}{t:>8,}{w:>11,}{life:>13,}\n"
+
+    subject = (f"[Vida Lead Dashboard] {today} — {sqc.get(today, 0)} SQLs today "
+               f"({sql} lifetime), {dsc.get(today, 0):,} sent")
     body = (
         f"Vida — Get CPR Done outreach dashboard\n"
         f"As of {today}\n"
-        f"{'=' * 46}\n\n"
-        f"PIPELINE (lifetime)\n"
-        f"  People reached:         {contacted:,}\n"
-        f"  Replies:                {replied:,}  ({pct(replied, contacted)} of reached)\n"
-        f"  Sales-Qualified Leads:  {sql:,}  ({pct(sql, contacted)} of reached)\n"
-        f"  Still awaiting reply:   {awaiting:,}\n"
-        f"  Existing customers routed to Manae: {customers:,}\n\n"
-        f"DELIVERABILITY (lifetime)\n"
-        f"  Emails sent (all touches): {sent_total:,}\n"
-        f"  Hard bounces:   {bounced:,}  ({pct(bounced, contacted)})\n"
-        f"  Unsubscribes:   {unsub:,}  ({pct(unsub, contacted)})\n\n"
-        f"LAST 7 DAYS\n"
-        f"  Emails sent:    {_sum_recent(dsc, 7):,}\n"
-        f"  Replies:        {_sum_recent(drc, 7):,}\n\n"
-        f"TODAY ({today})\n"
-        f"  Emails sent:    {dsc.get(today, 0):,}\n"
-        f"  Replies:        {drc.get(today, 0):,}\n\n"
-        f"—Vida (automated). Full per-contact status is live in the tracking sheet.\n"
+        f"{'=' * 60}\n\n"
+        f"  {'':<26}{'TODAY':>8}{'7 DAYS':>11}{'LIFETIME':>13}\n"
+        f"  {'-' * 58}\n"
+        + r("Emails sent (all touches)", dsc.get(today, 0), _sum_recent(dsc, 7), sent_total)
+        + r("New people reached",        nc.get(today, 0),  _sum_recent(nc, 7),  contacted)
+        + r("Replies",                   drc.get(today, 0), _sum_recent(drc, 7), replied)
+        + r("Sales-Qualified Leads",     sqc.get(today, 0), _sum_recent(sqc, 7), sql)
+        + r("Existing cust -> Manae",    cc.get(today, 0),  _sum_recent(cc, 7),  customers)
+        + r("Hard bounces",              bc.get(today, 0),  _sum_recent(bc, 7),  bounced)
+        + r("Unsubscribes",              uc.get(today, 0),  _sum_recent(uc, 7),  unsub)
+        + f"\n  Currently awaiting reply:  {awaiting:,}\n"
+        + f"  Lifetime reply rate: {pct(replied, contacted)}   "
+          f"SQL rate: {pct(sql, contacted)}\n\n"
+        f"Note: per-day counters for reached / SQLs / bounces / unsubscribes began\n"
+        f"{today}, so the TODAY and 7-DAY columns for those build up over the coming\n"
+        f"days. Emails-sent and replies are historical; LIFETIME is exact (live sheet).\n"
+        f"\n—Vida (automated). Full per-contact status is in the tracking sheet.\n"
     )
 
     if dry_run:

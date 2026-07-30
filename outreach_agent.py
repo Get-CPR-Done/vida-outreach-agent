@@ -1808,6 +1808,64 @@ def _sum_recent(counts_by_date, days):
     window = {(date.today() - timedelta(days=i)).isoformat() for i in range(days)}
     return sum(v for k, v in counts_by_date.items() if k in window)
 
+def update_agent_performance(*, sent_today, replies_7d, sql, customers, replied,
+                             contacted, today):
+    """Write Vida's slice into command-center/data/agent-performance.json so the CEO
+    morning-briefing 'Agent Performance' strip stays live without hand-editing. No-op
+    (logs + returns) if COMMAND_CENTER_TOKEN is unset, so local/dry runs are unaffected.
+    Reads-modifies-writes just the agents.vida key via the GitHub Contents API."""
+    token = os.environ.get("COMMAND_CENTER_TOKEN")
+    if not token:
+        log.info("agent-performance: COMMAND_CENTER_TOKEN unset — skipping slice update")
+        return
+    api = "https://api.github.com/repos/chris-joffe/chris-joffe-command-center/contents/data/agent-performance.json"
+
+    def _req(method, data=None):
+        req = urllib.request.Request(api, data=data, method=method)
+        req.add_header("Authorization", f"Bearer {token}")
+        req.add_header("Accept", "application/vnd.github+json")
+        req.add_header("User-Agent", "vida-agent")
+        with urllib.request.urlopen(req, timeout=30,
+                                    context=ssl.create_default_context()) as resp:
+            return json.loads(resp.read().decode())
+
+    try:
+        cur = _req("GET")
+        doc = json.loads(base64.b64decode(cur["content"]).decode())
+        sha = cur["sha"]
+    except Exception as e:  # never let telemetry break the report
+        log.error(f"agent-performance: read failed — {e}")
+        return
+
+    now = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+    reply_rate = f"{(100.0 * replied / contacted):.1f}%" if contacted else "—"
+    doc.setdefault("agents", {})["vida"] = {
+        "name": "Vida",
+        "role": "GCD · Sales Development",
+        "status": "healthy",
+        "last_run": now,
+        "headline": f"{sql} SQLs · {customers} customers routed",
+        "kpis": [
+            {"label": "Sent today", "value": f"{sent_today:,}"},
+            {"label": "Replies 7d", "value": f"{replies_7d:,}"},
+            {"label": "SQLs (life)", "value": str(sql), "tone": "good"},
+            {"label": "→ Manae", "value": str(customers)},
+        ],
+        "note": f"Reply rate {reply_rate} · {contacted:,} reached lifetime",
+    }
+    doc["generated_at"] = now
+    payload = json.dumps({
+        "message": f"agent-performance: Vida slice {today}",
+        "content": base64.b64encode(json.dumps(doc, indent=2).encode()).decode(),
+        "sha": sha,
+    }).encode()
+    try:
+        _req("PUT", payload)
+        log.info("agent-performance: Vida slice updated")
+    except Exception as e:
+        log.error(f"agent-performance: write failed — {e}")
+
+
 def run_report(dry_run=False):
     """Email Chris a lead dashboard: outbound volume, replies, SQLs, deliverability —
     lifetime + last-7-days + today. Reads live status from the sheet + counters from state."""
@@ -1922,6 +1980,12 @@ def run_report(dry_run=False):
         log.info(f"Lead dashboard emailed to {REPORT_EMAIL} ({sql} SQLs, {replied} replies)")
     else:
         log.error(f"Report send failed: {result.get('error')}")
+
+    # Keep the CEO briefing's Agent Performance strip live (best-effort; never fatal).
+    update_agent_performance(
+        sent_today=dsc.get(today, 0), replies_7d=_sum_recent(drc, 7), sql=sql,
+        customers=customers, replied=replied, contacted=contacted, today=today,
+    )
 
 # ─── Entry point ──────────────────────────────────────────────────────────────
 

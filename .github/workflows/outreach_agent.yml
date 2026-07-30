@@ -90,6 +90,7 @@ jobs:
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
           MANAE_CALENDAR_LINK: ${{ secrets.MANAE_CALENDAR_LINK }}
+          COMMAND_CENTER_TOKEN: ${{ secrets.COMMAND_CENTER_TOKEN }}
         run: |
           MODE=${{ steps.mode.outputs.mode }}
           DRY=${{ steps.mode.outputs.dry_run }}

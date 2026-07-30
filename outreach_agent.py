@@ -37,6 +37,7 @@ import time
 import urllib.error
 import urllib.request
 from datetime import date, datetime, timedelta
+from html import escape as html_escape
 from pathlib import Path
 
 import sheets_db
@@ -690,6 +691,33 @@ def _fallback_result(contact):
         "personalization_notes": "fallback used",
     }
 
+_MEETING_LINK_RE = re.compile(r"meeting link", re.IGNORECASE)
+
+def build_outreach_bodies(body):
+    """
+    Given a plaintext email body that contains the phrase "meeting link",
+    return (plain, html):
+      - plain: the phrase left readable but with the URL appended once so text-only
+               clients can still reach the scheduler — e.g. 'meeting link (https://...)'
+      - html:  an HTML rendering where the first "meeting link" is a real <a href>
+    If there's no scheduler link configured, or the phrase isn't present, html is None
+    and plain is returned unchanged (so nothing breaks for the no-link/fallback cases).
+    """
+    if not MANAE_CALENDAR_LINK or not _MEETING_LINK_RE.search(body):
+        return body, None
+
+    # Plaintext: keep the words, but make the URL reachable (only the first occurrence).
+    plain = _MEETING_LINK_RE.sub(
+        lambda m: f"{m.group(0)} ({MANAE_CALENDAR_LINK})", body, count=1)
+
+    # HTML: escape everything, then hyperlink the first "meeting link", newlines -> <br>.
+    esc = html_escape(body)
+    href = html_escape(MANAE_CALENDAR_LINK, quote=True)
+    esc = _MEETING_LINK_RE.sub(
+        lambda m: f'<a href="{href}">{m.group(0)}</a>', esc, count=1)
+    html = esc.replace("\n", "<br>\n")
+    return plain, html
+
 def generate_emails_batch(contacts):
     """
     Generate personalized emails for a list of contacts in a single Claude API call.
@@ -700,8 +728,11 @@ def generate_emails_batch(contacts):
         return []
 
     cta_line = (
-        f"- Close with a soft ask for a quick 15-minute call and include this scheduling "
-        f"link verbatim: {MANAE_CALENDAR_LINK}"
+        "- Close with a soft ask for a quick 15-minute call. Point them to the scheduler "
+        "using the exact phrase \"meeting link\" as the thing they click "
+        "(e.g. 'grab whatever time works on my meeting link' or 'my meeting link has a "
+        "few open times'). Do NOT paste a URL — write the words \"meeting link\" exactly "
+        "once and nothing more; the words will be turned into the clickable link for you."
         if MANAE_CALENDAR_LINK else
         "- Close with a soft ask for a quick 15-minute call (e.g. 'worth a quick chat?' — "
         "'reply and I'll send a couple of times')"
@@ -1583,7 +1614,8 @@ def run_daily(dry_run=False, limit=None):
                 log.info(f"  [DRY RUN] Would send touch {touch}. clean_first={clean_first!r}")
                 continue
 
-            result = send_email(email, subject, body)
+            plain_body, html_body = build_outreach_bodies(body)
+            result = send_email(email, subject, plain_body, html=html_body)
             if result.get("success"):
                 today_sent    += 1
                 sent_this_run += 1

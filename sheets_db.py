@@ -179,6 +179,16 @@ def update_row(svc, spreadsheet_id, row_number, **fields):
     ).execute())
 
 
+def read_name(svc, spreadsheet_id, row):
+    """Return (first, last) from a single row's B/C cells — the cleaned name we already
+    hold, more reliable than parsing a reply's From header."""
+    vals = _get(svc, spreadsheet_id, f"B{row}:C{row}")
+    r = vals[0] if vals else []
+    first = r[0].strip() if len(r) > 0 and r[0] else ""
+    last  = r[1].strip() if len(r) > 1 and r[1] else ""
+    return first, last
+
+
 def build_email_index(svc, spreadsheet_id, max_rows=200000):
     """
     Map lowercased email -> sheet row number, for matching inbound replies/bounces

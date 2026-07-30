@@ -1048,13 +1048,41 @@ def classify_interest(subject, body_text):
         log.warning(f"  Reply triage failed: {e} — forwarding to Manae to be safe")
         return False, False, False, "classifier error"
 
-def hubspot_upsert_sql(email, first="", last="", company=""):
-    """Create or update a HubSpot contact as a Sales Qualified Lead. Needs write scope."""
+_HS_PORTAL = None
+
+def _hubspot_portal_id():
+    """Fetch (and cache) the GCD HubSpot portal id, for building record links."""
+    global _HS_PORTAL
+    if _HS_PORTAL is not None:
+        return _HS_PORTAL
+    try:
+        data = http_get("https://api.hubapi.com/account-info/v3/details",
+                        {"Authorization": f"Bearer {HUBSPOT_TOKEN}"})
+        _HS_PORTAL = str(data.get("portalId", "") or "")
+    except Exception:
+        _HS_PORTAL = ""
+    return _HS_PORTAL
+
+def _hubspot_link(contact_id):
+    pid = _hubspot_portal_id()
+    return f"https://app.hubspot.com/contacts/{pid}/record/0-1/{contact_id}" if pid and contact_id else ""
+
+def _extract_phone(text):
+    """Pull a plausible US phone number from an email body/signature, or ''."""
+    if not text:
+        return ""
+    m = re.search(r'(?:\+?1[\s.\-]?)?\(?\d{3}\)?[\s.\-]?\d{3}[\s.\-]?\d{4}', text)
+    return m.group(0).strip() if m else ""
+
+def hubspot_upsert_sql(email, first="", last="", company="", phone=""):
+    """Create or update a HubSpot contact as a Sales-Qualified Lead. Returns the contact
+    id (for a record link) or '' on failure. Needs contacts write scope."""
     headers = {"Authorization": f"Bearer {HUBSPOT_TOKEN}", "Content-Type": "application/json"}
     props = {"email": email, "lifecyclestage": "salesqualifiedlead", "hs_lead_status": "OPEN"}
     if first:   props["firstname"] = first
     if last:    props["lastname"]  = last
     if company: props["company"]   = company
+    if phone:   props["phone"]     = phone
     try:
         status, data = http_post_raw(
             "https://api.hubapi.com/crm/v3/objects/contacts/search", headers,
@@ -1062,23 +1090,26 @@ def hubspot_upsert_sql(email, first="", last="", company=""):
              "properties": ["email"], "limit": 1},
         )
         if status == 200 and data.get("results"):
-            cid = data["results"][0]["id"]
+            cid = str(data["results"][0]["id"])
             body = json.dumps({"properties": props}).encode("utf-8")
             req = urllib.request.Request(
                 f"https://api.hubapi.com/crm/v3/objects/contacts/{cid}",
                 data=body, headers=headers, method="PATCH")
             with urllib.request.urlopen(req, timeout=60, context=ssl_ctx()) as r:
                 r.read()
-            log.info(f"    HubSpot: updated {email} → SQL")
-            return True
-        st, _ = http_post_raw("https://api.hubapi.com/crm/v3/objects/contacts", headers,
-                              {"properties": props})
-        ok = st in (200, 201)
-        log.info(f"    HubSpot: {'created' if ok else f'create FAILED ({st})'} {email} → SQL")
-        return ok
+            log.info(f"    HubSpot: updated {redact_email(email)} → SQL")
+            return cid
+        st, cdata = http_post_raw("https://api.hubapi.com/crm/v3/objects/contacts", headers,
+                                  {"properties": props})
+        if st in (200, 201):
+            cid = str(cdata.get("id", ""))
+            log.info(f"    HubSpot: created {redact_email(email)} → SQL")
+            return cid
+        log.info(f"    HubSpot: create FAILED ({st}) {redact_email(email)}")
+        return ""
     except Exception as e:
-        log.warning(f"    HubSpot SQL upsert failed for {email}: {e}")
-        return False
+        log.warning(f"    HubSpot SQL upsert failed for {redact_email(email)}: {e}")
+        return ""
 
 def draft_air_reply(subject, body_text):
     """Draft a suggested A-I-R reply (Acknowledge / Insert Value / Re-engage) for Manae
@@ -1297,17 +1328,29 @@ def check_replies(state, dry_run=False):
                         unsubscribe_count += 1
                         archived_count += 1
                         continue
+                    # Prefer the cleaned name we already hold in the sheet over parsing
+                    # the reply's From header (fixes the "name doesn't sync" gap Manae hit).
                     first = (sender_name.split()[0] if sender_name else "")
                     last  = (sender_name.split()[-1] if len(sender_name.split()) > 1 else "")
-
+                    hs_link = ""
+                    phone = ""
                     if interested:
-                        log.info(f"  SQL reply from {redact_email(sender_email)} ({reason}) → HubSpot + Manae")
+                        row = email_index.get(sender_email)
+                        if row and svc:
+                            try:
+                                sf, sl = sheets_db.read_name(svc, SPREADSHEET_ID, row)
+                                first, last = (sf or first), (sl or last)
+                            except Exception:
+                                pass
+                        phone = _extract_phone(body_text)
+                        log.info(f"  SQL from {redact_email(sender_email)} ({reason}) → HubSpot + Manae")
                         if not dry_run:
-                            hubspot_upsert_sql(sender_email, first, last)
+                            cid = hubspot_upsert_sql(sender_email, first, last, phone=phone)
+                            hs_link = _hubspot_link(cid)
                             _bump(state, "daily_sql_count")
                         mark_row(sender_email, reply_status="SQL",
                                  last_result=f"SQL: {reason}"[:250])
-                        tag = "SQL — booking interest"
+                        tag = "SQL"
                         sql_count += 1
                     else:
                         log.info(f"  Genuine reply from {redact_email(sender_email)} (not SQL) → Manae")
@@ -1320,10 +1363,22 @@ def check_replies(state, dry_run=False):
                         "\nSuggested reply (A-I-R draft — review/edit before sending):\n"
                         f"---\n{draft}\n---\n" if draft else ""
                     )
+                    sql_banner = ""
+                    if interested:
+                        sql_banner = (
+                            "*** SQL JUST GENERATED — added to the Get CPR Done HubSpot as a "
+                            "Sales-Qualified Lead. ***\n"
+                            + (f"HubSpot record: {hs_link}\n" if hs_link else "")
+                            + f"Name: {(first + ' ' + last).strip() or '(unknown)'}\n"
+                            + (f"Phone (from signature): {phone}\n" if phone
+                               else "Phone: none found in signature\n")
+                            + "\n"
+                        )
                     fwd_subject = f"[CPR Lead {tag}] {sender}"
                     fwd_body = (
-                        f"Hi Manae,\n\nNew reply to Vida's outreach email"
-                        f"{' — flagged as a Sales-Qualified Lead and created in HubSpot' if interested else ''}.\n\n"
+                        f"Hi Manae,\n\n"
+                        + sql_banner
+                        + "New reply to Vida's outreach email.\n\n"
                         f"From: {sender}\nSubject: {subject}\n"
                         f"Vida's read: {'INTERESTED — ' + reason if interested else 'genuine reply, no clear booking intent'}\n"
                         f"---\n{body_text[:800]}\n---\n"

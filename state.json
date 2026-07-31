@@ -32,6 +32,64 @@
         "lifecycleStage": "customer",
         "error": false
       }
+    },
+    {
+      "contact": {
+        "row": 2662,
+        "email": "NAVINC@BUILDINGKIDZ.COM",
+        "firstName": "Friedlin",
+        "lastName": "Linda",
+        "firstNameRaw": "FRIEDLIN",
+        "lastNameRaw": "LINDA",
+        "company": "",
+        "tags": [
+          "Childcare Centers",
+          "DAY CARE CENTER"
+        ],
+        "sourceList": "CA Orgs (Child Facing)",
+        "is_role": false,
+        "touch": 1
+      },
+      "hubspot": {
+        "found": true,
+        "isCustomer": true,
+        "name": "Navin Chugh",
+        "company": "Building Kidz School",
+        "lastDealName": "Building Kidz School of San Francisco: HSI In-Person Adult First Aid | CPR/AED for All Ages (10/4/2025)",
+        "lastDealValue": 600.0,
+        "lastDealDate": "2025-09-29",
+        "lifecycleStage": "customer",
+        "error": false
+      }
+    },
+    {
+      "contact": {
+        "row": 2865,
+        "email": "DIRECTOR@THELAKESCHOOL.NET",
+        "firstName": "Gallo",
+        "lastName": "Maria",
+        "firstNameRaw": "GALLO",
+        "lastNameRaw": "MARIA",
+        "company": "",
+        "tags": [
+          "Childcare Centers",
+          "DAY CARE CENTER"
+        ],
+        "sourceList": "CA Orgs (Child Facing)",
+        "is_role": true,
+        "touch": 1
+      },
+      "hubspot": {
+        "found": true,
+        "isCustomer": true,
+        "name": "Maia Gallo",
+        "company": "The Lake School",
+        "lastDealName": "The Lake School: Blended CPR/AED and First Aid (In-Person Skills Session: 8/27/2025)",
+        "lastDealValue": 840.0,
+        "lastDealDate": "2025-07-09",
+        "lifecycleStage": "customer",
+        "error": false
+      }
     }
   ],
   "last_roster_send": "2026-07-27",
@@ -47,7 +105,8 @@
     "2026-07-26": 2,
     "2026-07-27": 650,
     "2026-07-29": 750,
-    "2026-07-30": 750
+    "2026-07-30": 750,
+    "2026-07-31": 748
   },
   "daily_reply_count": {
     "2026-06-15": 10,
@@ -78,24 +137,32 @@
     "2026-07-27": 28,
     "2026-07-28": 0,
     "2026-07-29": 10,
-    "2026-07-30": 16
+    "2026-07-30": 16,
+    "2026-07-31": 1
   },
   "do_not_contact": [],
   "bounce_replacement_queue": [],
-  "sheet_cursor": 2656,
-  "last_daily_run": "2026-07-30",
-  "last_report_run": "2026-07-30",
+  "sheet_cursor": 3435,
+  "last_daily_run": "2026-07-31",
+  "last_report_run": "2026-07-31",
   "daily_new_count": {
     "2026-07-29": 750,
-    "2026-07-30": 281
+    "2026-07-30": 281,
+    "2026-07-31": 748
   },
   "daily_bounce_count": {
-    "2026-07-30": 292
+    "2026-07-30": 292,
+    "2026-07-31": 1
   },
   "daily_sql_count": {
-    "2026-07-30": 4
+    "2026-07-30": 4,
+    "2026-07-31": 1
   },
   "daily_unsub_count": {
-    "2026-07-30": 3
+    "2026-07-30": 3,
+    "2026-07-31": 1
+  },
+  "daily_customer_count": {
+    "2026-07-31": 2
   }
 }

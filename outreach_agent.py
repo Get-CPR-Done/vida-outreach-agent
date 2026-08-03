@@ -1455,55 +1455,39 @@ def check_replies(state, dry_run=False):
                                  last_result="replied (not SQL)")
 
                     full_name = (first + " " + last).strip()
-                    draft = draft_air_reply(subject, body_text) if not dry_run else ""
+                    lead_name = first or full_name       # prefer a first name if we have one
+                    who       = lead_name or company or "A new contact"
+                    them      = lead_name or "them"
 
-                    # Warm, human handoff line so Manae can pick up the thread naturally
-                    # instead of forwarding a robotic "SQL inbound" note that reads badly
-                    # to the prospect.
+                    # A short, human note to Manae — reads like a colleague passing along a
+                    # lead. No AI-tells (no "suggested reply", no "Vida's read", no automated
+                    # signature) and no lead card: for SQLs the full context lives on the
+                    # HubSpot record Manae opens. Manae only — Chris is not copied.
                     if interested:
-                        who = first or full_name or company or "This contact"
-                        handoff = (
-                            f"{who} is interested in exploring training with us and will need "
-                            f"more info — can you take it from here? I've added them to the "
-                            f"Get CPR Done HubSpot as a Sales-Qualified Lead."
-                        )
                         fwd_subject = (
                             f"{full_name or company or 'New'} — interested in CPR/First Aid training"
                         )
-                    else:
-                        who = first or full_name or company or "A contact"
-                        handoff = (
-                            f"{who} just replied to Vida's outreach. No clear booking intent "
-                            f"yet, but it's a real reply worth a human read — can you take a look?"
+                        fwd_body = (
+                            f"Hi Manae,\n\n"
+                            f"{who} is interested in exploring training with us and will need "
+                            f"more info — can you take it from here? I've added {them} to HubSpot "
+                            f"as a lead"
+                            + (f" — {hs_link}" if hs_link else ".") + "\n\n"
+                            f"Thanks!\nVida"
                         )
-                        fwd_subject = f"New reply to Vida's outreach — {full_name or sender}"
-
-                    # Everything below the divider is internal context for Manae — the
-                    # full lead card, the prospect's own words, and a suggested reply.
-                    card = (
-                        f"Lead:     {full_name or '(name unknown)'}\n"
-                        f"Company:  {company or '—'}\n"
-                        f"Email:    {sender_email}\n"
-                        f"Phone:    {phone or 'not provided in reply'}\n"
-                        + (f"HubSpot:  {hs_link}\n" if hs_link else "")
-                        + f"Vida's read: {'INTERESTED — ' + reason if interested else 'genuine reply, no clear booking intent'}\n"
-                    )
-                    draft_block = (
-                        f"\nSuggested reply (A-I-R draft — review/edit before sending):\n"
-                        f"---\n{draft}\n---\n" if draft else ""
-                    )
-                    fwd_body = (
-                        f"Hi Manae,\n\n"
-                        f"{handoff}\n\n"
-                        f"— — — For you (internal context — no need to forward this part) — — —\n\n"
-                        f"{card}\n"
-                        f"What they said (subject: \"{subject}\"):\n"
-                        f"---\n{body_text[:800]}\n---\n"
-                        f"{draft_block}\n"
-                        f"—Vida Monroe | {COMPANY_NAME} (via automated Outreach Agent)"
-                    )
+                    else:
+                        # Not booking-intent, so there's no HubSpot record yet — include the
+                        # reply itself so Manae has what she needs to respond.
+                        fwd_subject = f"{full_name or sender} replied — worth a look"
+                        fwd_body = (
+                            f"Hi Manae,\n\n"
+                            f"{who} just replied to my outreach — no clear booking intent yet, "
+                            f"but wanted to flag it for you. Here's what they said:\n\n"
+                            f"---\n{body_text[:800]}\n---\n\n"
+                            f"Thanks!\nVida"
+                        )
                     if not dry_run:
-                        send_email(MANAE_EMAIL, fwd_subject, fwd_body, cc=CHRIS_EMAIL)
+                        send_email(MANAE_EMAIL, fwd_subject, fwd_body)
                         mail.store(mid, "+FLAGS", "\\Seen")
                     genuine_count += 1
 

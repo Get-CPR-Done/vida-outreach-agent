@@ -1369,61 +1369,91 @@ def check_replies(state, dry_run=False):
                         unsubscribe_count += 1
                         archived_count += 1
                         continue
-                    # Prefer the cleaned name we already hold in the sheet over parsing
-                    # the reply's From header (fixes the "name doesn't sync" gap Manae hit).
+                    # Prefer the cleaned name/company we already hold in the sheet over
+                    # parsing the reply's From header (fixes the "name doesn't sync" gap
+                    # Manae hit). Fetched for every genuine reply so the context Manae
+                    # receives — and the HubSpot record we write — is as complete as we can.
                     first = (sender_name.split()[0] if sender_name else "")
                     last  = (sender_name.split()[-1] if len(sender_name.split()) > 1 else "")
-                    hs_link = ""
-                    phone = ""
+                    company = ""
+                    row = email_index.get(sender_email)
+                    if row and svc:
+                        try:
+                            sf, sl = sheets_db.read_name(svc, SPREADSHEET_ID, row)
+                            first, last = (sf or first), (sl or last)
+                        except Exception:
+                            pass
+                        try:
+                            company = sheets_db.read_company(svc, SPREADSHEET_ID, row) or ""
+                        except Exception:
+                            pass
+                    phone    = _extract_phone(body_text)
+                    hs_link  = ""
+
                     if interested:
-                        row = email_index.get(sender_email)
-                        if row and svc:
-                            try:
-                                sf, sl = sheets_db.read_name(svc, SPREADSHEET_ID, row)
-                                first, last = (sf or first), (sl or last)
-                            except Exception:
-                                pass
-                        phone = _extract_phone(body_text)
                         log.info(f"  SQL from {redact_email(sender_email)} ({reason}) → HubSpot + Manae")
                         if not dry_run:
-                            cid = hubspot_upsert_sql(sender_email, first, last, phone=phone)
+                            # Write the lead into GCD HubSpot with everything we know
+                            # (name, company, phone if in signature) and lifecycle = SQL.
+                            cid = hubspot_upsert_sql(sender_email, first, last,
+                                                     company=company, phone=phone)
                             hs_link = _hubspot_link(cid)
                             _bump(state, "daily_sql_count")
                         mark_row(sender_email, reply_status="SQL",
                                  last_result=f"SQL: {reason}"[:250])
-                        tag = "SQL"
                         sql_count += 1
                     else:
                         log.info(f"  Genuine reply from {redact_email(sender_email)} (not SQL) → Manae")
                         mark_row(sender_email, reply_status="Replied",
                                  last_result="replied (not SQL)")
-                        tag = "reply"
 
+                    full_name = (first + " " + last).strip()
                     draft = draft_air_reply(subject, body_text) if not dry_run else ""
+
+                    # Warm, human handoff line so Manae can pick up the thread naturally
+                    # instead of forwarding a robotic "SQL inbound" note that reads badly
+                    # to the prospect.
+                    if interested:
+                        who = first or full_name or company or "This contact"
+                        handoff = (
+                            f"{who} is interested in exploring training with us and will need "
+                            f"more info — can you take it from here? I've added them to the "
+                            f"Get CPR Done HubSpot as a Sales-Qualified Lead."
+                        )
+                        fwd_subject = (
+                            f"{full_name or company or 'New'} — interested in CPR/First Aid training"
+                        )
+                    else:
+                        who = first or full_name or company or "A contact"
+                        handoff = (
+                            f"{who} just replied to Vida's outreach. No clear booking intent "
+                            f"yet, but it's a real reply worth a human read — can you take a look?"
+                        )
+                        fwd_subject = f"New reply to Vida's outreach — {full_name or sender}"
+
+                    # Everything below the divider is internal context for Manae — the
+                    # full lead card, the prospect's own words, and a suggested reply.
+                    card = (
+                        f"Lead:     {full_name or '(name unknown)'}\n"
+                        f"Company:  {company or '—'}\n"
+                        f"Email:    {sender_email}\n"
+                        f"Phone:    {phone or 'not provided in reply'}\n"
+                        + (f"HubSpot:  {hs_link}\n" if hs_link else "")
+                        + f"Vida's read: {'INTERESTED — ' + reason if interested else 'genuine reply, no clear booking intent'}\n"
+                    )
                     draft_block = (
-                        "\nSuggested reply (A-I-R draft — review/edit before sending):\n"
+                        f"\nSuggested reply (A-I-R draft — review/edit before sending):\n"
                         f"---\n{draft}\n---\n" if draft else ""
                     )
-                    sql_banner = ""
-                    if interested:
-                        sql_banner = (
-                            "*** SQL JUST GENERATED — added to the Get CPR Done HubSpot as a "
-                            "Sales-Qualified Lead. ***\n"
-                            + (f"HubSpot record: {hs_link}\n" if hs_link else "")
-                            + f"Name: {(first + ' ' + last).strip() or '(unknown)'}\n"
-                            + (f"Phone (from signature): {phone}\n" if phone
-                               else "Phone: none found in signature\n")
-                            + "\n"
-                        )
-                    fwd_subject = f"[CPR Lead {tag}] {sender}"
                     fwd_body = (
                         f"Hi Manae,\n\n"
-                        + sql_banner
-                        + "New reply to Vida's outreach email.\n\n"
-                        f"From: {sender}\nSubject: {subject}\n"
-                        f"Vida's read: {'INTERESTED — ' + reason if interested else 'genuine reply, no clear booking intent'}\n"
+                        f"{handoff}\n\n"
+                        f"— — — For you (internal context — no need to forward this part) — — —\n\n"
+                        f"{card}\n"
+                        f"What they said (subject: \"{subject}\"):\n"
                         f"---\n{body_text[:800]}\n---\n"
-                        f"{draft_block}\n—Outreach Agent (automated)"
+                        f"{draft_block}\n"
+                        f"—Vida Monroe | {COMPANY_NAME} (via automated Outreach Agent)"
                     )
                     if not dry_run:
                         send_email(MANAE_EMAIL, fwd_subject, fwd_body, cc=CHRIS_EMAIL)

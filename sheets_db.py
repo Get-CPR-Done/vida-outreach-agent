@@ -189,6 +189,13 @@ def read_name(svc, spreadsheet_id, row):
     return first, last
 
 
+def read_company(svc, spreadsheet_id, row):
+    """Return the company (column D) for a single row, or '' if blank."""
+    vals = _get(svc, spreadsheet_id, f"D{row}:D{row}")
+    r = vals[0] if vals else []
+    return r[0].strip() if r and r[0] else ""
+
+
 def build_email_index(svc, spreadsheet_id, max_rows=200000):
     """
     Map lowercased email -> sheet row number, for matching inbound replies/bounces

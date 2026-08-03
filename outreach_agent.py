@@ -279,13 +279,23 @@ def redact_email(addr: str) -> str:
 # ─── Helpers ──────────────────────────────────────────────────────────────────
 
 def is_weekday():
-    return date.today().weekday() < 5
+    return pacific_today().weekday() < 5
 
 def is_monday():
-    return date.today().weekday() == 0
+    return pacific_today().weekday() == 0
 
+try:
+    from zoneinfo import ZoneInfo
+    _PT = ZoneInfo("America/Los_Angeles")
+except Exception:
+    _PT = None
+def pacific_today():
+    """The agent's business day in Pacific time. Fixes the UTC-boundary bug: server
+    UTC rolls over at 5pm PT, so the 7pm PT report used to see 'tomorrow' and report
+    0 sent. All daily counts + guards key off this so the day lines up with the work."""
+    return (datetime.now(_PT) if _PT else datetime.now()).date()
 def today_str():
-    return date.today().isoformat()
+    return pacific_today().isoformat()
 
 def _bump(state, key, n=1):
     """Increment a per-day counter state[key][today] by n (feeds the dashboard)."""
@@ -424,7 +434,7 @@ def fetch_followups(svc, state, needed):
     """Scan the already-contacted region (rows 2..cursor) for rows due for their
     next cadence touch. Returns contacts tagged with the touch number to send next."""
     cursor = int(state.get("sheet_cursor", 2) or 2)
-    today = date.today()
+    today = pacific_today()
     out = []
     row = 2
     WINDOW = 1000
@@ -1469,7 +1479,7 @@ def send_manae_roster(state, dry_run=False):
             f"   Last deal: {deal}{' · ' + value if value else ''}{' · ' + ddate if ddate else ''}"
         )
 
-    week_end = (date.today() - timedelta(days=1)).strftime("%b %d")
+    week_end = (pacific_today() - timedelta(days=1)).strftime("%b %d")
     subject = f"[Weekly Roster] {len(roster)} existing customers to follow up — week ending {week_end}"
     body = (
         f"Hi Manae,\n\n"
@@ -1805,7 +1815,7 @@ def run_reconcile(dry_run=False):
 
 def _sum_recent(counts_by_date, days):
     """Sum a {date_iso: n} dict over the last `days` days (inclusive of today)."""
-    window = {(date.today() - timedelta(days=i)).isoformat() for i in range(days)}
+    window = {(pacific_today() - timedelta(days=i)).isoformat() for i in range(days)}
     return sum(v for k, v in counts_by_date.items() if k in window)
 
 def update_agent_performance(*, sent_today, replies_7d, sql, customers, replied,
@@ -2003,7 +2013,7 @@ def main():
     _lock_fh = _acquire_lock()
 
     if not args.force_weekday and not args.force and not is_weekday():
-        log.info(f"Today is {date.today().strftime('%A')} — agent only runs M–F. Exiting.")
+        log.info(f"Today is {pacific_today().strftime('%A')} — agent only runs M–F. Exiting.")
         sys.exit(0)
 
     if args.dry_run:
@@ -2030,9 +2040,11 @@ def main():
             if is_weekday() and load_state().get("last_daily_run") != today_str():
                 log.info("Catch-up: daily send hasn't run today — running it now.")
                 run_daily()
-            if load_state().get("last_report_run") != today_str():
-                log.info("Catch-up: dashboard hasn't run today — sending it now.")
-                run_report()
+            # NOTE: the dashboard/report is no longer self-healed here. It now has a
+            # single reliable trigger — cjclaude-intake pings workflow_dispatch mode=report
+            # at 6pm PT. reply_check ends at 5pm PT so it could never back up a 6pm report
+            # anyway, and the old catch-up + the report cron were double-sending. One trigger
+            # = one email. (Backstop: the morning briefing's Vida tile shows a missed day.)
     elif args.mode == "reconcile":
         run_reconcile(dry_run=args.dry_run)
     elif args.mode == "report":

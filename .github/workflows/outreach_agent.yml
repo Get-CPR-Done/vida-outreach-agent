@@ -10,7 +10,10 @@ on:
     - cron: "0 16 * * 1-5"    # daily batch     — M–F 9:00 AM PDT
     - cron: "5 16 * * 1"      # roster          — Monday 9:05 AM PDT
     - cron: "0 16,18,20,22,0 * * 1-5"  # reply_check — every 2 hrs 9AM–5PM PDT
-    - cron: "0 2 * * *"       # lead dashboard  — daily 7:00 PM PDT (02:00 UTC). Weekly? -> "0 2 * * 1"
+    # Lead dashboard/report is NO LONGER a GitHub cron (GitHub schedules drift by hours,
+    # which — combined with the reply_check self-heal — caused two morning emails). It's
+    # now triggered reliably by cjclaude-intake's cron at 6PM PT via workflow_dispatch
+    # mode=report. See trigger-vida-report.js.
 
   workflow_dispatch:
     inputs:
@@ -41,6 +44,12 @@ on:
 
 permissions:
   contents: write                    # lets the built-in GITHUB_TOKEN commit state.json back
+
+# Serialize all runs of this agent. Prevents an overlapping report + reply_check (or two
+# delayed schedules) from both reading pre-send state and double-emailing.
+concurrency:
+  group: vida-outreach-agent
+  cancel-in-progress: false
 
 jobs:
   run-agent:

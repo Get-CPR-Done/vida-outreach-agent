@@ -1882,7 +1882,12 @@ def run_report(dry_run=False):
     from collections import Counter
     today = today_str()
     state = load_state()
-    if not dry_run and state.get("last_report_run") != today:
+    # Idempotency: at most one real dashboard per Pacific day. Belt-and-suspenders with the
+    # single 6-7pm trigger + workflow concurrency, so an accidental re-dispatch can't double-send.
+    if not dry_run and state.get("last_report_run") == today:
+        log.info(f"Dashboard already sent today ({today}) — skipping duplicate.")
+        return
+    if not dry_run:
         state["last_report_run"] = today
         save_state(state)
     svc = _sheet_service()

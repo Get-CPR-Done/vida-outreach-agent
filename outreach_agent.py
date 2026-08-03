@@ -1090,6 +1090,48 @@ def classify_interest(subject, body_text):
         return False, False, False, "classifier error"
 
 _HS_PORTAL = None
+_HS_TRAFFIC_PROP = None  # cache: (property_internal_name, option_value) or (None, None)
+
+# Label of the contact property we stamp on AI-sourced leads, and the option we set it
+# to. Overridable by env in case GCD renames them. We resolve the *internal* names from
+# these labels at runtime so a rename in HubSpot doesn't silently break attribution.
+TRAFFIC_SOURCE_PROP_LABEL   = os.environ.get("HS_TRAFFIC_SOURCE_LABEL", "Original Traffic Source")
+TRAFFIC_SOURCE_OPTION_LABEL = os.environ.get("HS_TRAFFIC_SOURCE_OPTION", "AI Referral")
+
+def _resolve_traffic_source_prop():
+    """Resolve the internal (property_name, option_value) for stamping AI-sourced leads
+    with 'Original Traffic Source = AI Referral'. Matches by *label* against GCD's contact
+    properties, and only returns a property that is (a) writable and (b) has the AI Referral
+    option defined — so we never send a value HubSpot will reject and kill the whole write.
+    Returns (None, None) if the property/option isn't set up yet (Vida just skips it then).
+    Cached for the process."""
+    global _HS_TRAFFIC_PROP
+    if _HS_TRAFFIC_PROP is not None:
+        return _HS_TRAFFIC_PROP
+    _HS_TRAFFIC_PROP = (None, None)
+    want_prop = TRAFFIC_SOURCE_PROP_LABEL.strip().lower()
+    want_opt  = TRAFFIC_SOURCE_OPTION_LABEL.strip().lower()
+    try:
+        data = http_get("https://api.hubapi.com/crm/v3/properties/contacts",
+                        {"Authorization": f"Bearer {HUBSPOT_TOKEN}"})
+        for p in data.get("results", []):
+            if p.get("label", "").strip().lower() != want_prop:
+                continue
+            # Skip HubSpot's read-only built-in "Original Traffic Source" (hs_analytics_source)
+            # and anything else calculated/read-only — writing to it would 400.
+            meta = p.get("modificationMetadata") or {}
+            if meta.get("readOnlyValue"):
+                continue
+            for opt in p.get("options", []):
+                if opt.get("label", "").strip().lower() == want_opt:
+                    _HS_TRAFFIC_PROP = (p["name"], opt["value"])
+                    log.info(f"    HubSpot: traffic-source attribution → {p['name']}={opt['value']}")
+                    return _HS_TRAFFIC_PROP
+        log.info("    HubSpot: no writable 'Original Traffic Source' property with an "
+                 "'AI Referral' option found — skipping attribution (create it to enable).")
+    except Exception as e:
+        log.warning(f"    HubSpot traffic-source property lookup failed: {e}")
+    return _HS_TRAFFIC_PROP
 
 def _hubspot_portal_id():
     """Fetch (and cache) the GCD HubSpot portal id, for building record links."""
@@ -1119,11 +1161,16 @@ def hubspot_upsert_sql(email, first="", last="", company="", phone=""):
     """Create or update a HubSpot contact as a Sales-Qualified Lead. Returns the contact
     id (for a record link) or '' on failure. Needs contacts write scope."""
     headers = {"Authorization": f"Bearer {HUBSPOT_TOKEN}", "Content-Type": "application/json"}
-    props = {"email": email, "lifecyclestage": "salesqualifiedlead", "hs_lead_status": "OPEN"}
+    # Lifecycle = SQL, Lead Status = NEW. Original Traffic Source = AI Referral (stamped
+    # only when GCD's HubSpot has that writable property/option — resolved by label).
+    props = {"email": email, "lifecyclestage": "salesqualifiedlead", "hs_lead_status": "NEW"}
     if first:   props["firstname"] = first
     if last:    props["lastname"]  = last
     if company: props["company"]   = company
     if phone:   props["phone"]     = phone
+    ts_prop, ts_val = _resolve_traffic_source_prop()
+    if ts_prop:
+        props[ts_prop] = ts_val
     try:
         status, data = http_post_raw(
             "https://api.hubapi.com/crm/v3/objects/contacts/search", headers,

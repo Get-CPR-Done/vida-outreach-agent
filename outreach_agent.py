@@ -1150,6 +1150,24 @@ def _hubspot_link(contact_id):
     pid = _hubspot_portal_id()
     return f"https://app.hubspot.com/contacts/{pid}/record/0-1/{contact_id}" if pid and contact_id else ""
 
+def _clean_name(name):
+    """Normalize a name for human-facing use. Export lists are often ALL-CAPS
+    ('NOWLEN', 'REBECCA'), which reads badly in an email a person will forward. Title-case
+    all-upper / all-lower tokens; leave already-mixed-case names (McDonald, O'Brien) alone.
+    Handles hyphens and apostrophes so 'MARY-JANE' -> 'Mary-Jane', \"O'BRIEN\" -> \"O'Brien\"."""
+    if not name:
+        return ""
+    def fix(tok):
+        if tok and (tok.isupper() or tok.islower()):
+            return tok[:1].upper() + tok[1:].lower()
+        return tok
+    words = []
+    for word in name.split():
+        parts = re.split(r"([-'])", word)  # keep the separators
+        words.append("".join(p if p in "-'" else fix(p) for p in parts))
+    return " ".join(words).strip()
+
+
 def _extract_phone(text):
     """Pull a plausible US phone number from an email body/signature, or ''."""
     if not text:
@@ -1436,15 +1454,22 @@ def check_replies(state, dry_run=False):
                             pass
                     phone    = _extract_phone(body_text)
                     hs_link  = ""
+                    hs_added = False
+
+                    # Export data is frequently ALL-CAPS — normalize before it's written to
+                    # HubSpot or shown to Manae so everything reads like a human wrote it.
+                    first = _clean_name(first)
+                    last  = _clean_name(last)
 
                     if interested:
                         log.info(f"  SQL from {redact_email(sender_email)} ({reason}) → HubSpot + Manae")
                         if not dry_run:
                             # Write the lead into GCD HubSpot with everything we know
                             # (name, company, phone if in signature) and lifecycle = SQL.
-                            cid = hubspot_upsert_sql(sender_email, first, last,
-                                                     company=company, phone=phone)
-                            hs_link = _hubspot_link(cid)
+                            cid      = hubspot_upsert_sql(sender_email, first, last,
+                                                          company=company, phone=phone)
+                            hs_link  = _hubspot_link(cid)
+                            hs_added = bool(cid)   # only true when the write actually succeeded
                             _bump(state, "daily_sql_count")
                         mark_row(sender_email, reply_status="SQL",
                                  last_result=f"SQL: {reason}"[:250])
@@ -1461,29 +1486,34 @@ def check_replies(state, dry_run=False):
 
                     # A short, human note to Manae — reads like a colleague passing along a
                     # lead. No AI-tells (no "suggested reply", no "Vida's read", no automated
-                    # signature) and no lead card: for SQLs the full context lives on the
-                    # HubSpot record Manae opens. Manae only — Chris is not copied.
+                    # signature). Always includes the prospect's own words so Manae can see
+                    # and respond to the original message without hunting for it. Manae only.
+                    quoted = f"Here's what they said:\n\n---\n{body_text[:1200]}\n---\n\n"
                     if interested:
+                        # Only mention the HubSpot add when the write actually landed — never
+                        # claim it happened if the write failed.
+                        hs_line = ""
+                        if hs_added:
+                            hs_line = (
+                                f"I've added {them} to HubSpot as a lead"
+                                + (f" — {hs_link}" if hs_link else ".") + "\n\n"
+                            )
                         fwd_subject = (
                             f"{full_name or company or 'New'} — interested in CPR/First Aid training"
                         )
                         fwd_body = (
                             f"Hi Manae,\n\n"
                             f"{who} is interested in exploring training with us and will need "
-                            f"more info — can you take it from here? I've added {them} to HubSpot "
-                            f"as a lead"
-                            + (f" — {hs_link}" if hs_link else ".") + "\n\n"
+                            f"more info — can you take it from here?\n\n"
+                            f"{hs_line}{quoted}"
                             f"Thanks!\nVida"
                         )
                     else:
-                        # Not booking-intent, so there's no HubSpot record yet — include the
-                        # reply itself so Manae has what she needs to respond.
                         fwd_subject = f"{full_name or sender} replied — worth a look"
                         fwd_body = (
                             f"Hi Manae,\n\n"
                             f"{who} just replied to my outreach — no clear booking intent yet, "
-                            f"but wanted to flag it for you. Here's what they said:\n\n"
-                            f"---\n{body_text[:800]}\n---\n\n"
+                            f"but wanted to flag it for you. {quoted}"
                             f"Thanks!\nVida"
                         )
                     if not dry_run:

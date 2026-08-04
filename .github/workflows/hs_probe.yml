@@ -30,7 +30,7 @@ jobs:
           print(f"search status: {st}  ->  {'READ OK' if st==200 else 'READ FAIL'}")
 
           print("\n=== 2) WRITE test (create throwaway contact) ===")
-          probe_email = "vida-scope-probe@example.invalid"
+          probe_email = "vida-scope-probe-0804@example.com"
           st, resp = call("POST", "https://api.hubapi.com/crm/v3/objects/contacts",
                           {"properties": {"email": probe_email, "firstname": "Vida",
                                           "lastname": "ScopeProbe"}})

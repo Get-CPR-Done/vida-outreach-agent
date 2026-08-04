@@ -1,0 +1,67 @@
+name: HubSpot Scope Probe
+on:
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Probe HubSpot token scopes
+        env:
+          HUBSPOT_TOKEN: ${{ secrets.HUBSPOT_TOKEN }}
+        run: |
+          python3 - <<'PY'
+          import json, urllib.request, urllib.error, os
+          TOKEN = os.environ["HUBSPOT_TOKEN"]
+          H = {"Authorization": f"Bearer {TOKEN}", "Content-Type": "application/json"}
+
+          def call(method, url, body=None):
+              data = json.dumps(body).encode() if body is not None else None
+              req = urllib.request.Request(url, data=data, headers=H, method=method)
+              try:
+                  with urllib.request.urlopen(req, timeout=60) as r:
+                      return r.status, json.loads(r.read() or "{}")
+              except urllib.error.HTTPError as e:
+                  return e.code, (e.read().decode()[:300])
+
+          print("=== 1) READ test (search) ===")
+          st, _ = call("POST", "https://api.hubapi.com/crm/v3/objects/contacts/search",
+                       {"filterGroups": [], "limit": 1})
+          print(f"search status: {st}  ->  {'READ OK' if st==200 else 'READ FAIL'}")
+
+          print("\n=== 2) WRITE test (create throwaway contact) ===")
+          probe_email = "vida-scope-probe@example.invalid"
+          st, resp = call("POST", "https://api.hubapi.com/crm/v3/objects/contacts",
+                          {"properties": {"email": probe_email, "firstname": "Vida",
+                                          "lastname": "ScopeProbe"}})
+          if st in (200, 201):
+              cid = resp["id"]
+              print(f"create status: {st}  ->  WRITE OK (contact {cid})")
+              dst, _ = call("DELETE", f"https://api.hubapi.com/crm/v3/objects/contacts/{cid}")
+              print(f"cleanup delete status: {dst}  ->  {'deleted' if dst in (200,204) else 'COULD NOT DELETE — remove '+cid+' manually'}")
+          elif st == 409:
+              print("create status: 409 (probe contact already exists) -> WRITE OK")
+          else:
+              print(f"create status: {st}  ->  WRITE FAIL")
+              print(f"detail: {resp}")
+
+          print("\n=== 3) PROPERTY check (Original Traffic Source / AI Referral) ===")
+          st, resp = call("GET", "https://api.hubapi.com/crm/v3/properties/contacts")
+          if st != 200:
+              print(f"properties read status: {st} -> cannot check (needs crm.schemas.contacts.read)")
+          else:
+              found = None
+              for p in resp.get("results", []):
+                  if p.get("label", "").strip().lower() == "original traffic source":
+                      meta = p.get("modificationMetadata") or {}
+                      opts = [o.get("label") for o in p.get("options", [])]
+                      has_ai = any((o.get("label","").strip().lower() == "ai referral") for o in p.get("options", []))
+                      found = (p["name"], not meta.get("readOnlyValue"), has_ai, opts)
+              if not found:
+                  print("No property labeled 'Original Traffic Source' found.")
+              else:
+                  name, writable, has_ai, opts = found
+                  print(f"property name={name}  writable={writable}  has 'AI Referral' option={has_ai}")
+                  if not has_ai:
+                      print(f"  (existing options: {opts[:12]})")
+          PY

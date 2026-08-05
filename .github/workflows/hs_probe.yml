@@ -1,0 +1,37 @@
+name: HubSpot Scope Probe
+on:
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dump source-related contact properties
+        env:
+          HUBSPOT_TOKEN: ${{ secrets.HUBSPOT_TOKEN }}
+        run: |
+          python3 - <<'PY'
+          import json, urllib.request, urllib.error, os
+          TOKEN = os.environ["HUBSPOT_TOKEN"]
+          H = {"Authorization": f"Bearer {TOKEN}", "Content-Type": "application/json"}
+          req = urllib.request.Request("https://api.hubapi.com/crm/v3/properties/contacts", headers=H)
+          with urllib.request.urlopen(req, timeout=60) as r:
+              props = json.loads(r.read())["results"]
+
+          print("=== Contact properties matching 'source' or 'traffic' ===\n")
+          for p in props:
+              label = p.get("label", "")
+              name  = p.get("name", "")
+              if "source" not in (label+name).lower() and "traffic" not in (label+name).lower():
+                  continue
+              meta = p.get("modificationMetadata") or {}
+              writable = not meta.get("readOnlyValue")
+              opts = [o.get("label") for o in p.get("options", [])]
+              has_ai = any(o.get("label","").strip().lower() == "ai referral" for o in p.get("options", []))
+              print(f"• label={label!r}")
+              print(f"    name={name}  writable={writable}  type={p.get('type')}/{p.get('fieldType')}")
+              print(f"    has 'AI Referral' option={has_ai}")
+              if opts:
+                  print(f"    options={opts[:20]}")
+              print()
+          PY

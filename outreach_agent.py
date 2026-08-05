@@ -1095,8 +1095,10 @@ _HS_TRAFFIC_PROP = None  # cache: (property_internal_name, option_value) or (Non
 # Label of the contact property we stamp on AI-sourced leads, and the option we set it
 # to. Overridable by env in case GCD renames them. We resolve the *internal* names from
 # these labels at runtime so a rename in HubSpot doesn't silently break attribution.
-TRAFFIC_SOURCE_PROP_LABEL   = os.environ.get("HS_TRAFFIC_SOURCE_LABEL", "Original Traffic Source")
-TRAFFIC_SOURCE_OPTION_LABEL = os.environ.get("HS_TRAFFIC_SOURCE_OPTION", "AI Referral")
+# GCD's HubSpot has a built-in, writable "Latest Traffic Source" (hs_latest_source) enum
+# whose options include "AI Referrals". That's the field we stamp on Vida-sourced leads.
+TRAFFIC_SOURCE_PROP_LABEL   = os.environ.get("HS_TRAFFIC_SOURCE_LABEL", "Latest Traffic Source")
+TRAFFIC_SOURCE_OPTION_LABEL = os.environ.get("HS_TRAFFIC_SOURCE_OPTION", "AI Referrals")
 
 def _resolve_traffic_source_prop():
     """Resolve the internal (property_name, option_value) for stamping AI-sourced leads

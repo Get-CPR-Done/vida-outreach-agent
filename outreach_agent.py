@@ -1340,7 +1340,11 @@ def check_replies(state, dry_run=False):
 
     try:
         ctx  = ssl_ctx()
-        mail = imaplib.IMAP4_SSL("imap.gmail.com", ssl_context=ctx)
+        # timeout is essential: without it a stalled Gmail socket blocks forever, and because
+        # all runs share one concurrency group, a hung reply_check holds the lock and jams the
+        # daily send behind it (happened 2026-08-05 — a reply_check hung 1.5h+). The socket
+        # timeout applies to login/select/search/fetch too, so any stall errors out fast.
+        mail = imaplib.IMAP4_SSL("imap.gmail.com", ssl_context=ctx, timeout=60)
         mail.login(gmail_user, gmail_pass)
         mail.select("INBOX")
 

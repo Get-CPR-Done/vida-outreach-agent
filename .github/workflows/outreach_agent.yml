@@ -7,13 +7,17 @@ on:
     # 9:00 AM PST  = 17:00 UTC  (Nov–Mar)
     # Running at 16:00 UTC covers PDT; adjust to 17:00 in winter manually.
 
-    - cron: "0 16 * * 1-5"    # daily batch     — M–F 9:00 AM PDT
     - cron: "5 16 * * 1"      # roster          — Monday 9:05 AM PDT
     - cron: "0 16,18,20,22,0 * * 1-5"  # reply_check — every 2 hrs 9AM–5PM PDT
-    # Lead dashboard/report is NO LONGER a GitHub cron (GitHub schedules drift by hours,
-    # which — combined with the reply_check self-heal — caused two morning emails). It's
-    # now triggered reliably by cjclaude-intake's cron at 6PM PT via workflow_dispatch
-    # mode=report. See trigger-vida-report.js.
+    # The DAILY send is NO LONGER a GitHub cron. GitHub schedules drift and sometimes drop
+    # entirely (2026-08-04: nothing fired ~15h; 2026-08-05: the 9am daily was dropped again),
+    # and a GitHub daily cron firing at 16:00 collided with the 16:00 reply_check in the shared
+    # concurrency group. It's now triggered reliably by cjclaude-intake's cron at 9:10 AM PT via
+    # workflow_dispatch mode=daily (see trigger-vida-daily.js), offset past the 16:00 reply_check
+    # so the ~3.75h send starts with the lock free. Backup net: the reply_check self-heal below
+    # runs the daily send if last_daily_run isn't today. Same pattern as the report (below).
+    # Lead dashboard/report is likewise NOT a GitHub cron — cjclaude-intake triggers it at 6PM PT
+    # (mode=report). See trigger-vida-report.js.
 
   workflow_dispatch:
     inputs:
@@ -54,6 +58,10 @@ concurrency:
 jobs:
   run-agent:
     runs-on: ubuntu-latest
+    # The daily send legitimately runs ~3.75h (rate-limited). Cap at 5.5h so a genuinely hung
+    # run self-clears sooner than GitHub's 6h default and can't hold the shared concurrency lock
+    # indefinitely. (Reply-check hangs are separately prevented by the IMAP socket timeout.)
+    timeout-minutes: 330
     concurrency:
       group: outreach-agent          # prevents two jobs running simultaneously
       cancel-in-progress: false      # don't cancel — let the running one finish

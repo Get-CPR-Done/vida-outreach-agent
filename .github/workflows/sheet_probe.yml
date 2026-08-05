@@ -18,7 +18,7 @@ jobs:
         run: |
           python3 - <<'PY'
           import os, sheets_db
-          sid = os.environ.get("SPREADSHEET_ID", "1FWMATFGLXFI-cPm0bAWnU_uh20pRgatq49db_iGNQ2w")
+          sid = os.environ.get("SPREADSHEET_ID") or "1FWMATFGLXFI-cPm0bAWnU_uh20pRgatq49db_iGNQ2w"
           svc = sheets_db.service()
           # Column A holds email; count how far it's populated.
           rows = sheets_db._get(svc, sid, "A2:A200000")

@@ -2140,8 +2140,8 @@ def run_report(dry_run=False):
         week_v = min(week_v, life_v)
         return [label, min(today_v, week_v), week_v, life_v]
     perf_table = [
-        _pt("Emails sent",    dsc.get(today, 0), _sum_recent(dsc, 7), sent_total),
-        _pt("People reached", nc.get(today, 0),  _sum_recent(nc, 7),  contacted),
+        _pt("Emails sent (all touches)", dsc.get(today, 0), _sum_recent(dsc, 7), sent_total),
+        _pt("New people reached", nc.get(today, 0),  _sum_recent(nc, 7),  contacted),
         _pt("Replies",        drc.get(today, 0), _sum_recent(drc, 7), replied),
         _pt("SQLs",           sqc.get(today, 0), _sum_recent(sqc, 7), sql),
         _pt("Cust → Manae",   cc.get(today, 0),  _sum_recent(cc, 7),  customers),

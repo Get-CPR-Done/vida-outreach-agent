@@ -225,6 +225,7 @@ def snapshot_status(svc, spreadsheet_id, max_rows=200000):
             "contacted": _cell(r, COL["contacted"]),
             "reply_status": _cell(r, COL["reply_status"]),
             "do_not_contact": _cell(r, COL["do_not_contact"]),
+            "date_sent": _cell(r, COL["date_sent"]),
         }
     return out
 

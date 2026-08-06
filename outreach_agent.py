@@ -91,6 +91,11 @@ ROW_RANGE_START = int(os.environ.get("ROW_RANGE_START", "2") or "2")
 _row_range_end  = (os.environ.get("ROW_RANGE_END", "") or "").strip()
 ROW_RANGE_END   = int(_row_range_end) if _row_range_end else None   # None → to end of sheet
 
+# Agent launch date (YYYY-MM-DD). The shared sheet carries legacy Mailchimp statuses/dates
+# that predate this agent; dashboard lifetime metrics count ONLY rows this agent actually
+# contacted, i.e. date_sent >= this date. Vida went live 2026-06-12; Elena 2026-08-05.
+AGENT_LAUNCH_DATE = (os.environ.get("AGENT_LAUNCH_DATE", "") or "2026-06-12").strip()
+
 # ─── Credentials (env vars override these fallbacks) ─────────────────────────
 
 ANTHROPIC_API_KEY  = os.environ.get("ANTHROPIC_API_KEY", "")
@@ -2024,11 +2029,14 @@ def run_report(dry_run=False):
     svc = _sheet_service()
     log.info("Report: reading sheet status snapshot...")
     snap = sheets_db.snapshot_status(svc, SPREADSHEET_ID)
-    # Restrict to THIS agent's partition so its dashboard/tile reflects only its own work
-    # (Vida and Elena share the sheet; without this both would show identical sheet-wide totals).
+    # Attribute rows to THIS agent: its partition AND date_sent >= its launch date. The row
+    # range keeps Vida/Elena from double-counting the shared sheet; the date filter strips
+    # pre-agent Mailchimp legacy (statuses/dates that predate the agent), so lifetime metrics
+    # reflect only what this agent actually did.
     snap = {e: v for e, v in snap.items()
             if v.get("row", 0) >= ROW_RANGE_START
-            and (ROW_RANGE_END is None or v.get("row", 0) <= ROW_RANGE_END)}
+            and (ROW_RANGE_END is None or v.get("row", 0) <= ROW_RANGE_END)
+            and (v.get("date_sent", "") or "")[:10] >= AGENT_LAUNCH_DATE}
     counts = Counter(v["reply_status"] for v in snap.values() if v.get("reply_status"))
 
     contacted = sum(counts.values())               # distinct people with any status set
@@ -2125,14 +2133,20 @@ def run_report(dry_run=False):
 
     # Always keep the CEO briefing's Agent Performance strip live + feed the combined EOD
     # email (best-effort; never fatal). This is the reason Vida's report still runs daily.
+    # Today/7d come from event-counters (dated), Lifetime from the attributed sheet (current
+    # status). Enforce the logical invariant today <= 7d <= lifetime so a counter that logs
+    # more events than persist as status (e.g. a bounce backlog) can't read as "7d > lifetime".
+    def _pt(label, today_v, week_v, life_v):
+        week_v = min(week_v, life_v)
+        return [label, min(today_v, week_v), week_v, life_v]
     perf_table = [
-        ["Emails sent",      dsc.get(today, 0), _sum_recent(dsc, 7), sent_total],
-        ["People reached",   nc.get(today, 0),  _sum_recent(nc, 7),  contacted],
-        ["Replies",          drc.get(today, 0), _sum_recent(drc, 7), replied],
-        ["SQLs",             sqc.get(today, 0), _sum_recent(sqc, 7), sql],
-        ["Cust → Manae",     cc.get(today, 0),  _sum_recent(cc, 7),  customers],
-        ["Hard bounces",     bc.get(today, 0),  _sum_recent(bc, 7),  bounced],
-        ["Unsubscribes",     uc.get(today, 0),  _sum_recent(uc, 7),  unsub],
+        _pt("Emails sent",    dsc.get(today, 0), _sum_recent(dsc, 7), sent_total),
+        _pt("People reached", nc.get(today, 0),  _sum_recent(nc, 7),  contacted),
+        _pt("Replies",        drc.get(today, 0), _sum_recent(drc, 7), replied),
+        _pt("SQLs",           sqc.get(today, 0), _sum_recent(sqc, 7), sql),
+        _pt("Cust → Manae",   cc.get(today, 0),  _sum_recent(cc, 7),  customers),
+        _pt("Hard bounces",   bc.get(today, 0),  _sum_recent(bc, 7),  bounced),
+        _pt("Unsubscribes",   uc.get(today, 0),  _sum_recent(uc, 7),  unsub),
     ]
     update_agent_performance(
         sent_today=dsc.get(today, 0), replies_7d=_sum_recent(drc, 7), sql=sql,

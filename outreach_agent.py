@@ -2110,26 +2110,113 @@ def run_report(dry_run=False):
         "</div>"
     )
 
-    if dry_run:
-        log.info("[DRY RUN] Lead dashboard:\n" + body)
-        return
-    result = send_email(REPORT_EMAIL, subject, body, html=html)
-    if result.get("success"):
-        log.info(f"Lead dashboard emailed to {REPORT_EMAIL} ({sql} SQLs, {replied} replies)")
-    else:
-        log.error(f"Report send failed: {result.get('error')}")
-
-    # Keep the CEO briefing's Agent Performance strip live (best-effort; never fatal).
+    # Always keep the CEO briefing's Agent Performance strip live + feed the combined EOD
+    # email (best-effort; never fatal). This is the reason Vida's report still runs daily.
     update_agent_performance(
         sent_today=dsc.get(today, 0), replies_7d=_sum_recent(drc, 7), sql=sql,
         customers=customers, replied=replied, contacted=contacted, today=today,
     )
 
+    if dry_run:
+        log.info("[DRY RUN] Lead dashboard:\n" + body)
+        return
+    # Vida no longer emails her own dashboard to Chris — his EOD view is the single combined
+    # Vida+Elena+Joffe email (mode=combined_report). Set REPORT_EMAIL_ENABLED=1 to re-enable.
+    if os.environ.get("REPORT_EMAIL_ENABLED") == "1":
+        result = send_email(REPORT_EMAIL, subject, body, html=html)
+        if result.get("success"):
+            log.info(f"Lead dashboard emailed to {REPORT_EMAIL} ({sql} SQLs, {replied} replies)")
+        else:
+            log.error(f"Report send failed: {result.get('error')}")
+    else:
+        log.info("Standalone Vida dashboard suppressed (combined SDR email handles Chris's view); slice written.")
+
 # ─── Entry point ──────────────────────────────────────────────────────────────
+
+# ─── Combined all-SDR EOD email ───────────────────────────────────────────────
+
+# Which command-center agent slices are SDRs, grouped by company for the combined email.
+# (agent-performance.json also holds non-SDR agents like miles/sage — excluded here.)
+SDR_GROUPS = [
+    ("Get CPR Done", ["vida", "elena"]),
+    ("Joffe School Safety", ["joffe"]),
+]
+
+def run_combined_report(dry_run=False):
+    """Email Chris ONE combined HTML dashboard covering every SDR (Vida, Elena, Jessica &
+    Ryan), grouped by company. Reads each agent's slice from command-center's
+    agent-performance.json — which every SDR keeps fresh via its own report run — so this is
+    a pure render+send with no per-agent data access. Chris's single end-of-day view."""
+    token = os.environ.get("COMMAND_CENTER_TOKEN")
+    if not token:
+        log.error("combined_report: COMMAND_CENTER_TOKEN unset — cannot read agent slices")
+        return
+    api = "https://api.github.com/repos/chris-joffe/chris-joffe-command-center/contents/data/agent-performance.json"
+    try:
+        req = urllib.request.Request(api, headers={
+            "Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json",
+            "User-Agent": "vida-combined-report"})
+        with urllib.request.urlopen(req, timeout=30, context=ssl_ctx()) as r:
+            doc = json.loads(base64.b64decode(json.loads(r.read().decode())["content"]).decode())
+    except Exception as e:
+        log.error(f"combined_report: read failed — {e}")
+        return
+    agents = doc.get("agents", {})
+    today = today_str()
+
+    def card(a):
+        kpis = "".join(
+            f"<td align='center' style='padding:6px 16px'>"
+            f"<div style='font-size:20px;font-weight:700;color:#111'>{k.get('value','—')}</div>"
+            f"<div style='font-size:11px;color:#888;text-transform:uppercase;letter-spacing:.4px'>{k.get('label','')}</div>"
+            f"</td>" for k in a.get("kpis", []))
+        dot = {"healthy": "#1a8f4c", "paused": "#b9911f"}.get(a.get("status"), "#999")
+        return (
+            f"<div style='border:1px solid #e6e6e6;border-radius:10px;padding:14px 16px;margin:0 0 12px'>"
+            f"<div style='font-size:15px;font-weight:700;color:#111'>"
+            f"<span style='display:inline-block;width:8px;height:8px;border-radius:50%;background:{dot};margin-right:8px'></span>"
+            f"{a.get('name','?')}</div>"
+            f"<div style='color:#666;font-size:13px;margin:2px 0 10px'>{a.get('headline','')}</div>"
+            f"<table style='border-collapse:collapse'><tr>{kpis}</tr></table>"
+            f"<div style='color:#999;font-size:12px;margin-top:8px'>{a.get('note','')}</div>"
+            f"</div>")
+
+    sections, txt = "", []
+    for company, keys in SDR_GROUPS:
+        cards = [card(agents[k]) for k in keys if k in agents]
+        if not cards:
+            continue
+        sections += (f"<h3 style='font:600 13px Arial;color:#888;text-transform:uppercase;"
+                     f"letter-spacing:.6px;margin:18px 0 8px'>{company}</h3>" + "".join(cards))
+        for k in keys:
+            if k in agents:
+                a = agents[k]
+                txt.append(f"  {a.get('name')}: {a.get('headline')} — " +
+                           ", ".join(f"{x.get('label')} {x.get('value')}" for x in a.get('kpis', [])))
+    if not sections:
+        log.info("combined_report: no SDR slices found — nothing to send.")
+        return
+
+    subject = f"[SDR Daily] {today} — Vida, Elena & Joffe outreach"
+    html = (f"<div style='font-family:Arial,Helvetica,sans-serif;max-width:620px'>"
+            f"<h2 style='margin:0 0 2px;color:#111'>SDR Daily — all outreach</h2>"
+            f"<div style='color:#888;font-size:13px;margin-bottom:6px'>As of {today}</div>"
+            f"{sections}"
+            f"<p style='color:#aaa;font-size:11px;margin-top:16px'>One combined view of every SDR. "
+            f"Per-agent detail lives on each command-center tile.</p></div>")
+    body = f"SDR Daily — {today}\n\n" + "\n".join(txt) + "\n\n—Combined SDR report (automated)"
+
+    if dry_run:
+        log.info("[DRY RUN] combined SDR email:\n" + body)
+        return
+    result = send_email(REPORT_EMAIL, subject, body, html=html)
+    log.info(f"Combined SDR email sent to {REPORT_EMAIL}" if result.get("success")
+             else f"Combined SDR email failed: {result.get('error')}")
+
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--mode", choices=["daily","roster","reply_check","reconcile","report"], required=True)
+    parser.add_argument("--mode", choices=["daily","roster","reply_check","reconcile","report","combined_report"], required=True)
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--force-weekday", action="store_true")
     parser.add_argument("--force", action="store_true")  # alias
@@ -2177,6 +2264,8 @@ def main():
         run_reconcile(dry_run=args.dry_run)
     elif args.mode == "report":
         run_report(dry_run=args.dry_run)
+    elif args.mode == "combined_report":
+        run_combined_report(dry_run=args.dry_run)
 
     log.info(f"=== Complete | {datetime.now().isoformat()} ===\n")
 

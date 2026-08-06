@@ -32,6 +32,7 @@ on:
           - reply_check
           - reconcile
           - report
+          - combined_report
       dry_run:
         description: "Dry run (no emails sent)"
         required: false

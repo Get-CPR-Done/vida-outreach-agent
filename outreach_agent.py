@@ -78,6 +78,14 @@ FOLLOWUP_STALE_DAYS = 30   # don't resurrect a contact whose last touch is older
 STATE_FILE = Path(__file__).parent / "state.json"
 LOG_FILE   = Path(__file__).parent / "outreach.log"
 
+# Partition bounds. When two SDR identities share one contact sheet, each is confined to a
+# disjoint row range so they can never email the same prospect (and each only follows up its
+# own sends). Defaults (2 .. end-of-sheet) = unpartitioned, single-agent behavior. Set both
+# via env per deployment: Vida = rows 2..62533, Elena = rows 62534..end.
+ROW_RANGE_START = int(os.environ.get("ROW_RANGE_START", "2") or "2")
+_row_range_end  = (os.environ.get("ROW_RANGE_END", "") or "").strip()
+ROW_RANGE_END   = int(_row_range_end) if _row_range_end else None   # None → to end of sheet
+
 # ─── Credentials (env vars override these fallbacks) ─────────────────────────
 
 ANTHROPIC_API_KEY  = os.environ.get("ANTHROPIC_API_KEY", "")
@@ -190,7 +198,7 @@ def _normalize_state(raw: dict) -> dict:
         "daily_reply_count": {},
         "do_not_contact": [],
         "bounce_replacement_queue": [],
-        "sheet_cursor": 2,
+        "sheet_cursor": ROW_RANGE_START,
     }
     state.update(raw)
 
@@ -236,7 +244,7 @@ def load_state():
         "daily_reply_count": {},
         "do_not_contact": [],
         "bounce_replacement_queue": [],
-        "sheet_cursor": 2,
+        "sheet_cursor": ROW_RANGE_START,
     }
 
 def save_state(state):
@@ -354,15 +362,16 @@ def fetch_sheet_contacts(svc, state, needed, extra_skip=None):
     contacted = {e.lower() for e in state.get("contacted_emails", [])}
     dnc       = {e.lower() for e in state.get("do_not_contact", [])}
     cursor    = int(state.get("sheet_cursor", 2) or 2)
-    if cursor < 2:
-        cursor = 2
+    if cursor < ROW_RANGE_START:
+        cursor = ROW_RANGE_START
 
     contacts = []
     skipped_roles = []
     WINDOW = 500
     empty_windows = 0
 
-    while len(contacts) < needed and empty_windows < 3:
+    while (len(contacts) < needed and empty_windows < 3
+           and (ROW_RANGE_END is None or cursor <= ROW_RANGE_END)):
         rows, last = sheets_db.read_window(svc, SPREADSHEET_ID, cursor, WINDOW)
         if last < cursor:            # scanned past the end of the sheet
             cursor = last + 1
@@ -374,6 +383,11 @@ def fetch_sheet_contacts(svc, state, needed, extra_skip=None):
 
         broke = False
         for c in rows:
+            # Stop at the partition boundary — never pull a row outside this agent's range.
+            if ROW_RANGE_END is not None and c["row"] > ROW_RANGE_END:
+                cursor = ROW_RANGE_END + 1
+                broke = True
+                break
             cursor = c["row"] + 1    # we've now examined through this row
             if not sheets_db.is_eligible(c):
                 continue
@@ -436,10 +450,12 @@ def fetch_followups(svc, state, needed):
     cursor = int(state.get("sheet_cursor", 2) or 2)
     today = pacific_today()
     out = []
-    row = 2
+    row = ROW_RANGE_START
+    # Only scan this agent's own partition, so it never follows up a row the other agent sent.
+    scan_end = cursor if ROW_RANGE_END is None else min(cursor, ROW_RANGE_END + 1)
     WINDOW = 1000
-    while row < cursor and len(out) < needed:
-        count = min(WINDOW, cursor - row)
+    while row < scan_end and len(out) < needed:
+        count = min(WINDOW, scan_end - row)
         rows, last = sheets_db.read_window(svc, SPREADSHEET_ID, row, count)
         if last < row:
             break
@@ -464,7 +480,7 @@ def fetch_followups(svc, state, needed):
             if len(out) >= needed:
                 break
         row = last + 1
-    log.info(f"  Follow-up scan (rows 2-{cursor - 1}): {len(out)} due for next touch")
+    log.info(f"  Follow-up scan (rows {ROW_RANGE_START}-{scan_end - 1}): {len(out)} due for next touch")
     return out
 
 # ─── HubSpot ──────────────────────────────────────────────────────────────────

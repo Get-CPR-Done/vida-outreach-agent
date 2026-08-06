@@ -108,6 +108,10 @@ jobs:
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
           MANAE_CALENDAR_LINK: ${{ secrets.MANAE_CALENDAR_LINK }}
           COMMAND_CENTER_TOKEN: ${{ secrets.COMMAND_CENTER_TOKEN }}
+          # Partition bounds (repo variables). Vida is confined to rows 2..62533 so she and
+          # Elena (rows 62534..end, separate repo) never email the same prospect. Unset = unbounded.
+          ROW_RANGE_START: ${{ vars.ROW_RANGE_START }}
+          ROW_RANGE_END: ${{ vars.ROW_RANGE_END }}
         run: |
           MODE=${{ steps.mode.outputs.mode }}
           DRY=${{ steps.mode.outputs.dry_run }}

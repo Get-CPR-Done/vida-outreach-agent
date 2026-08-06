@@ -1937,7 +1937,7 @@ def _sum_recent(counts_by_date, days):
     return sum(v for k, v in counts_by_date.items() if k in window)
 
 def update_agent_performance(*, sent_today, replies_7d, sql, customers, replied,
-                             contacted, today):
+                             contacted, today, table=None):
     """Write Vida's slice into command-center/data/agent-performance.json so the CEO
     morning-briefing 'Agent Performance' strip stays live without hand-editing. No-op
     (logs + returns) if COMMAND_CENTER_TOKEN is unset, so local/dry runs are unaffected.
@@ -1980,6 +1980,8 @@ def update_agent_performance(*, sent_today, replies_7d, sql, customers, replied,
             {"label": "→ Manae", "value": str(customers)},
         ],
         "note": f"Reply rate {reply_rate} · {contacted:,} reached lifetime",
+        # Detailed Today / 7-day / Lifetime table for the combined EOD email.
+        "table": table or [],
     }
     doc["generated_at"] = now
     payload = json.dumps({
@@ -2112,9 +2114,19 @@ def run_report(dry_run=False):
 
     # Always keep the CEO briefing's Agent Performance strip live + feed the combined EOD
     # email (best-effort; never fatal). This is the reason Vida's report still runs daily.
+    perf_table = [
+        ["Emails sent",      dsc.get(today, 0), _sum_recent(dsc, 7), sent_total],
+        ["People reached",   nc.get(today, 0),  _sum_recent(nc, 7),  contacted],
+        ["Replies",          drc.get(today, 0), _sum_recent(drc, 7), replied],
+        ["SQLs",             sqc.get(today, 0), _sum_recent(sqc, 7), sql],
+        ["Cust → Manae",     cc.get(today, 0),  _sum_recent(cc, 7),  customers],
+        ["Hard bounces",     bc.get(today, 0),  _sum_recent(bc, 7),  bounced],
+        ["Unsubscribes",     uc.get(today, 0),  _sum_recent(uc, 7),  unsub],
+    ]
     update_agent_performance(
         sent_today=dsc.get(today, 0), replies_7d=_sum_recent(drc, 7), sql=sql,
         customers=customers, replied=replied, contacted=contacted, today=today,
+        table=perf_table,
     )
 
     if dry_run:
@@ -2165,19 +2177,36 @@ def run_combined_report(dry_run=False):
     today = today_str()
 
     def card(a):
-        kpis = "".join(
-            f"<td align='center' style='padding:6px 16px'>"
-            f"<div style='font-size:20px;font-weight:700;color:#111'>{k.get('value','—')}</div>"
-            f"<div style='font-size:11px;color:#888;text-transform:uppercase;letter-spacing:.4px'>{k.get('label','')}</div>"
-            f"</td>" for k in a.get("kpis", []))
         dot = {"healthy": "#1a8f4c", "paused": "#b9911f"}.get(a.get("status"), "#999")
+        tbl = a.get("table") or []
+        if tbl:
+            th = ("<tr style='background:#f4f4f4'>"
+                  "<th align='left' style='padding:5px 12px;font:600 11px Arial;color:#666;text-transform:uppercase;letter-spacing:.4px'>Metric</th>"
+                  "<th align='right' style='padding:5px 12px;font:600 11px Arial;color:#666'>Today</th>"
+                  "<th align='right' style='padding:5px 12px;font:600 11px Arial;color:#666'>7 days</th>"
+                  "<th align='right' style='padding:5px 12px;font:600 11px Arial;color:#666'>Lifetime</th></tr>")
+            trs = "".join(
+                f"<tr style='border-top:1px solid #eee'>"
+                f"<td style='padding:5px 12px;font-size:13px;color:#333'>{row[0]}</td>"
+                f"<td align='right' style='padding:5px 12px;font-size:13px'>{row[1]:,}</td>"
+                f"<td align='right' style='padding:5px 12px;font-size:13px'>{row[2]:,}</td>"
+                f"<td align='right' style='padding:5px 12px;font-size:13px;font-weight:600'>{row[3]:,}</td></tr>"
+                for row in tbl)
+            detail = (f"<table style='border-collapse:collapse;width:100%;margin-top:8px'>{th}{trs}</table>")
+        else:
+            # Fallback to summary KPIs if a slice predates the table field.
+            detail = "".join(
+                f"<span style='display:inline-block;margin:4px 14px 0 0'>"
+                f"<b style='font-size:15px'>{k.get('value','—')}</b> "
+                f"<span style='color:#888;font-size:12px'>{k.get('label','')}</span></span>"
+                for k in a.get("kpis", []))
         return (
             f"<div style='border:1px solid #e6e6e6;border-radius:10px;padding:14px 16px;margin:0 0 12px'>"
             f"<div style='font-size:15px;font-weight:700;color:#111'>"
             f"<span style='display:inline-block;width:8px;height:8px;border-radius:50%;background:{dot};margin-right:8px'></span>"
             f"{a.get('name','?')}</div>"
-            f"<div style='color:#666;font-size:13px;margin:2px 0 10px'>{a.get('headline','')}</div>"
-            f"<table style='border-collapse:collapse'><tr>{kpis}</tr></table>"
+            f"<div style='color:#666;font-size:13px;margin:2px 0 4px'>{a.get('headline','')}</div>"
+            f"{detail}"
             f"<div style='color:#999;font-size:12px;margin-top:8px'>{a.get('note','')}</div>"
             f"</div>")
 
@@ -2191,8 +2220,10 @@ def run_combined_report(dry_run=False):
         for k in keys:
             if k in agents:
                 a = agents[k]
-                txt.append(f"  {a.get('name')}: {a.get('headline')} — " +
-                           ", ".join(f"{x.get('label')} {x.get('value')}" for x in a.get('kpis', [])))
+                txt.append(f"\n  {a.get('name')} — {a.get('headline')}")
+                txt.append(f"    {'Metric':<16}{'Today':>8}{'7d':>9}{'Life':>11}")
+                for row in (a.get("table") or []):
+                    txt.append(f"    {row[0]:<16}{row[1]:>8,}{row[2]:>9,}{row[3]:>11,}")
     if not sections:
         log.info("combined_report: no SDR slices found — nothing to send.")
         return

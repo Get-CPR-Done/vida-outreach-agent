@@ -1957,17 +1957,9 @@ def update_agent_performance(*, sent_today, replies_7d, sql, customers, replied,
                                     context=ssl.create_default_context()) as resp:
             return json.loads(resp.read().decode())
 
-    try:
-        cur = _req("GET")
-        doc = json.loads(base64.b64decode(cur["content"]).decode())
-        sha = cur["sha"]
-    except Exception as e:  # never let telemetry break the report
-        log.error(f"agent-performance: read failed — {e}")
-        return
-
     now = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
     reply_rate = f"{(100.0 * replied / contacted):.1f}%" if contacted else "—"
-    doc.setdefault("agents", {})[AGENT_KEY] = {
+    slice_data = {
         "name": SENDER_FIRST,
         "role": "GCD · Sales Development",
         "status": "healthy",
@@ -1983,17 +1975,36 @@ def update_agent_performance(*, sent_today, replies_7d, sql, customers, replied,
         # Detailed Today / 7-day / Lifetime table for the combined EOD email.
         "table": table or [],
     }
-    doc["generated_at"] = now
-    payload = json.dumps({
-        "message": f"agent-performance: {SENDER_FIRST} slice {today}",
-        "content": base64.b64encode(json.dumps(doc, indent=2).encode()).decode(),
-        "sha": sha,
-    }).encode()
-    try:
-        _req("PUT", payload)
-        log.info(f"agent-performance: {SENDER_FIRST} slice updated")
-    except Exception as e:
-        log.error(f"agent-performance: write failed — {e}")
+    # Read-modify-write with retry on 409: multiple SDR agents write this same file (Elena +
+    # Joffe report in the same minute), so a stale-SHA conflict is expected — re-read and retry.
+    for attempt in range(5):
+        try:
+            cur = _req("GET")
+            doc = json.loads(base64.b64decode(cur["content"]).decode())
+            sha = cur["sha"]
+        except Exception as e:  # never let telemetry break the report
+            log.error(f"agent-performance: read failed — {e}")
+            return
+        doc.setdefault("agents", {})[AGENT_KEY] = slice_data
+        doc["generated_at"] = now
+        payload = json.dumps({
+            "message": f"agent-performance: {SENDER_FIRST} slice {today}",
+            "content": base64.b64encode(json.dumps(doc, indent=2).encode()).decode(),
+            "sha": sha,
+        }).encode()
+        try:
+            _req("PUT", payload)
+            log.info(f"agent-performance: {SENDER_FIRST} slice updated")
+            return
+        except urllib.error.HTTPError as e:
+            if e.code == 409 and attempt < 4:
+                time.sleep(1 + attempt)   # someone else wrote first — re-read fresh SHA, retry
+                continue
+            log.error(f"agent-performance: write failed — {e}")
+            return
+        except Exception as e:
+            log.error(f"agent-performance: write failed — {e}")
+            return
 
 
 def run_report(dry_run=False):

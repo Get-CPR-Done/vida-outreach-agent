@@ -2011,6 +2011,11 @@ def run_report(dry_run=False):
     svc = _sheet_service()
     log.info("Report: reading sheet status snapshot...")
     snap = sheets_db.snapshot_status(svc, SPREADSHEET_ID)
+    # Restrict to THIS agent's partition so its dashboard/tile reflects only its own work
+    # (Vida and Elena share the sheet; without this both would show identical sheet-wide totals).
+    snap = {e: v for e, v in snap.items()
+            if v.get("row", 0) >= ROW_RANGE_START
+            and (ROW_RANGE_END is None or v.get("row", 0) <= ROW_RANGE_END)}
     counts = Counter(v["reply_status"] for v in snap.values() if v.get("reply_status"))
 
     contacted = sum(counts.values())               # distinct people with any status set

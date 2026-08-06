@@ -50,6 +50,11 @@ CHRIS_EMAIL   = "chris@getcprdone.com"
 REPORT_EMAIL  = "chris@joffeemergencyservices.com"   # lead dashboard → Chris's main inbox
 SENDING_NAME  = "Vida Monroe"
 COMPANY_NAME  = "Get CPR Done"
+# Derived identity — keeps the code identity-agnostic so a second SDR (Elena Reyes) runs the
+# exact same logic with only these config constants changed. SENDER_FIRST is used in short
+# sign-offs; AGENT_KEY namespaces this agent's slice on the CEO command-center dashboard.
+SENDER_FIRST  = SENDING_NAME.split()[0]
+AGENT_KEY     = (os.environ.get("AGENT_KEY") or SENDER_FIRST).lower()
 
 # Chris-confirmed, TRUE credibility line Vida may cite (especially the touch-3 value
 # email). Deliberately non-specific — no invented schools, names, or exact numbers.
@@ -1528,7 +1533,7 @@ def check_replies(state, dry_run=False):
                             f"{who} is interested in exploring training with us and will need "
                             f"more info — can you take it from here?\n\n"
                             f"{hs_line}{quoted}"
-                            f"Thanks!\nVida"
+                            f"Thanks!\n{SENDER_FIRST}"
                         )
                     else:
                         fwd_subject = f"{full_name or sender} replied — worth a look"
@@ -1536,7 +1541,7 @@ def check_replies(state, dry_run=False):
                             f"Hi Manae,\n\n"
                             f"{who} just replied to my outreach — no clear booking intent yet, "
                             f"but wanted to flag it for you. {quoted}"
-                            f"Thanks!\nVida"
+                            f"Thanks!\n{SENDER_FIRST}"
                         )
                     if not dry_run:
                         send_email(MANAE_EMAIL, fwd_subject, fwd_body)
@@ -1600,7 +1605,7 @@ def send_manae_roster(state, dry_run=False):
         f"outreach list. They were filtered out of the cold batch because they already have a "
         f"relationship with us — these are yours to follow up directly.\n\n"
         + "\n\n".join(rows) +
-        f"\n\n—Vida Monroe | {COMPANY_NAME} (via automated Outreach Agent)"
+        f"\n\n—{SENDING_NAME} | {COMPANY_NAME} (via automated Outreach Agent)"
     )
 
     if not dry_run:
@@ -1962,8 +1967,8 @@ def update_agent_performance(*, sent_today, replies_7d, sql, customers, replied,
 
     now = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
     reply_rate = f"{(100.0 * replied / contacted):.1f}%" if contacted else "—"
-    doc.setdefault("agents", {})["vida"] = {
-        "name": "Vida",
+    doc.setdefault("agents", {})[AGENT_KEY] = {
+        "name": SENDER_FIRST,
         "role": "GCD · Sales Development",
         "status": "healthy",
         "last_run": now,
@@ -1978,13 +1983,13 @@ def update_agent_performance(*, sent_today, replies_7d, sql, customers, replied,
     }
     doc["generated_at"] = now
     payload = json.dumps({
-        "message": f"agent-performance: Vida slice {today}",
+        "message": f"agent-performance: {SENDER_FIRST} slice {today}",
         "content": base64.b64encode(json.dumps(doc, indent=2).encode()).decode(),
         "sha": sha,
     }).encode()
     try:
         _req("PUT", payload)
-        log.info("agent-performance: Vida slice updated")
+        log.info(f"agent-performance: {SENDER_FIRST} slice updated")
     except Exception as e:
         log.error(f"agent-performance: write failed — {e}")
 
@@ -2032,10 +2037,10 @@ def run_report(dry_run=False):
     def r(label, t, w, life):
         return f"  {label:<26}{t:>8,}{w:>11,}{life:>13,}\n"
 
-    subject = (f"[Vida Lead Dashboard] {today} — {sqc.get(today, 0)} SQLs today "
+    subject = (f"[{SENDER_FIRST} Lead Dashboard] {today} — {sqc.get(today, 0)} SQLs today "
                f"({sql} lifetime), {dsc.get(today, 0):,} sent")
     body = (
-        f"Vida — Get CPR Done outreach dashboard\n"
+        f"{SENDER_FIRST} — {COMPANY_NAME} outreach dashboard\n"
         f"As of {today}\n"
         f"{'=' * 60}\n\n"
         f"  {'':<26}{'TODAY':>8}{'7 DAYS':>11}{'LIFETIME':>13}\n"
@@ -2056,7 +2061,7 @@ def run_report(dry_run=False):
         f"Note: per-day counters for reached / SQLs / bounces / unsubscribes began\n"
         f"{today}, so the TODAY and 7-DAY columns for those build up over the coming\n"
         f"days. Emails-sent and replies are historical; LIFETIME is exact (live sheet).\n"
-        f"\n—Vida (automated). Full per-contact status is in the tracking sheet.\n"
+        f"\n—{SENDER_FIRST} (automated). Full per-contact status is in the tracking sheet.\n"
     )
 
     # HTML version (a real table so the columns hold their shape in email clients)
@@ -2069,7 +2074,7 @@ def run_report(dry_run=False):
                 f"<td align='right' style='padding:6px 14px;font-weight:600'>{life:,}</td></tr>")
     html = (
         "<div style='font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#222'>"
-        f"<h2 style='margin:0 0 2px'>Vida — Get CPR Done outreach dashboard</h2>"
+        f"<h2 style='margin:0 0 2px'>{SENDER_FIRST} — {COMPANY_NAME} outreach dashboard</h2>"
         f"<div style='color:#888;margin-bottom:14px'>As of {today}</div>"
         "<table style='border-collapse:collapse;font-size:14px;min-width:460px'>"
         "<thead><tr style='background:#efefef'>"

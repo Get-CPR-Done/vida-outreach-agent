@@ -37,7 +37,7 @@ import time
 import urllib.error
 import urllib.request
 from datetime import date, datetime, timedelta
-from html import escape as html_escape
+from html import escape as html_escape, unescape as html_unescape
 from pathlib import Path
 
 import sheets_db
@@ -1068,6 +1068,49 @@ def parse_from(sender):
         name = ""
     return name, email
 
+_HTML_TAG_RE = re.compile(r"<[^>]+>")
+
+def _html_to_text(html):
+    """Strip an HTML email part down to readable text (no external deps)."""
+    html = re.sub(r"(?is)<(script|style)[^>]*>.*?</\1>", " ", html)
+    html = re.sub(r"(?i)<br\s*/?>", "\n", html)
+    html = re.sub(r"(?i)</(p|div|tr|li|h[1-6]|blockquote)>", "\n", html)
+    text = html_unescape(_HTML_TAG_RE.sub("", html))
+    text = re.sub(r"[ \t]+\n", "\n", text)
+    return re.sub(r"\n{3,}", "\n\n", text).strip()
+
+def _reply_body(msg):
+    """Extract a reply's readable text. Prefer text/plain, but fall back to a tag-stripped
+    text/html part so an HTML-only reply is NEVER seen as an empty message (which used to
+    blank Manae's forward AND make the interest classifier default to 'interested')."""
+    plain, html = "", ""
+    if msg.is_multipart():
+        for part in msg.walk():
+            if part.get_content_disposition() == "attachment":
+                continue
+            ct = part.get_content_type()
+            if ct == "text/plain" and not plain:
+                p = part.get_payload(decode=True)
+                if p:
+                    plain = p.decode(part.get_content_charset() or "utf-8", errors="replace")
+            elif ct == "text/html" and not html:
+                p = part.get_payload(decode=True)
+                if p:
+                    html = p.decode(part.get_content_charset() or "utf-8", errors="replace")
+    else:
+        p = msg.get_payload(decode=True)
+        if p:
+            body = p.decode(msg.get_content_charset() or "utf-8", errors="replace")
+            if msg.get_content_type() == "text/html":
+                html = body
+            else:
+                plain = body
+    if plain.strip():
+        return plain
+    if html.strip():
+        return _html_to_text(html)
+    return ""
+
 def classify_interest(subject, body_text):
     """
     Triage a genuine-looking inbound reply. Returns (is_auto, opt_out, interested, reason).
@@ -1078,6 +1121,10 @@ def classify_interest(subject, body_text):
                    lead (broad, per our SDR playbook — not just explicit booking).
     On error, returns (False, False, False, ...) so a real reply is still forwarded.
     """
+    # Never guess "interested" from an empty/blank body — that manufactured a bogus SQL
+    # (Barbara, 2026-08-05). Forward it for a human to eyeball instead; no HubSpot write.
+    if not (body_text or "").strip():
+        return False, False, False, "no readable message body — needs human review"
     try:
         payload = {
             "model": GEN_MODEL,
@@ -1088,8 +1135,12 @@ def classify_interest(subject, body_text):
                 "auto = an automated/no-action message (out-of-office, 'thanks for reaching "
                 "out' autoresponder, email-address-change or 'update your records' notice, "
                 "ticket/case confirmation, no-reply/bulk). false for a genuine human reply.\n"
-                "opt_out = the person asks to be removed / stop emailing / unsubscribe / "
-                "'take me off your list' / 'stop' / 'do not contact us'.\n"
+                "opt_out = the person wants off the list OR clearly declines. Set true for "
+                "removal requests ('remove me', 'unsubscribe', 'stop emailing', 'take me off "
+                "your list', 'do not contact us') AND for a clear rejection ('no', 'no thanks', "
+                "'not interested', \"we're not interested\", 'please stop'). A SOFT deferral "
+                "('not right now', 'maybe next year', 'circle back later') is NOT opt_out — "
+                "that's a genuine not-interested reply we keep for later.\n"
                 "interested = a genuine human showing ANY curiosity or engagement — this is a "
                 "sales-qualified lead and the bar is BROAD: 'tell me more', a question about "
                 "how it works / pricing / availability / scheduling, naming who handles this, "
@@ -1389,14 +1440,7 @@ def check_replies(state, dry_run=False):
 
                 sender  = msg.get("From", "Unknown")
                 subject = msg.get("Subject", "")
-                body_text = ""
-                if msg.is_multipart():
-                    for part in msg.walk():
-                        if part.get_content_type() == "text/plain":
-                            body_text = part.get_payload(decode=True).decode(errors="replace")
-                            break
-                else:
-                    body_text = msg.get_payload(decode=True).decode(errors="replace")
+                body_text = _reply_body(msg)
 
                 sender_name, sender_email = parse_from(sender)
                 # RFC-3834 / common autoresponder headers — a cheap, reliable auto signal
@@ -1520,7 +1564,11 @@ def check_replies(state, dry_run=False):
                     # lead. No AI-tells (no "suggested reply", no "Vida's read", no automated
                     # signature). Always includes the prospect's own words so Manae can see
                     # and respond to the original message without hunting for it. Manae only.
-                    quoted = f"Here's what they said:\n\n---\n{body_text[:1200]}\n---\n\n"
+                    # Give Manae the full context — the prospect's message plus the quoted
+                    # back-and-forth the reply carries (Chris: sales needs the whole exchange).
+                    _msg = (body_text or "").strip()
+                    _msg = _msg[:4000] + ("\n…(truncated)" if len(_msg) > 4000 else "")
+                    quoted = f"Here's the full exchange:\n\n---\n{_msg}\n---\n\n"
                     if interested:
                         # Only mention the HubSpot add when the write actually landed — never
                         # claim it happened if the write failed.

@@ -2,7 +2,95 @@
   "contacted_emails": [],
   "sent_thread_ids": [],
   "forwarded_thread_ids": [],
-  "manae_roster_pending": [],
+  "manae_roster_pending": [
+    {
+      "contact": {
+        "row": 5753,
+        "email": "RYAN@ONLYLOVECC.COM",
+        "firstName": "Francois",
+        "lastName": "Victoria",
+        "firstNameRaw": "FRANCOIS",
+        "lastNameRaw": "VICTORIA",
+        "company": "",
+        "tags": [
+          "Childcare Centers",
+          "DAY CARE CENTER"
+        ],
+        "sourceList": "CA Orgs (Child Facing)",
+        "is_role": false,
+        "touch": 1
+      },
+      "hubspot": {
+        "found": true,
+        "isCustomer": true,
+        "name": "Ryan Suarez",
+        "company": null,
+        "lastDealName": "Only Love Children's Center: HSI In-Person Pediatric First Aid | CPR/AED for All Ages (4/3/2026)",
+        "lastDealValue": 680.0,
+        "lastDealDate": "2026-02-26",
+        "lifecycleStage": "other",
+        "error": false
+      }
+    },
+    {
+      "contact": {
+        "row": 5755,
+        "email": "TONYA@ONLYLOVECC.COM",
+        "firstName": "Vorobets",
+        "lastName": "Antonina",
+        "firstNameRaw": "VOROBETS",
+        "lastNameRaw": "ANTONINA",
+        "company": "",
+        "tags": [
+          "Childcare Centers",
+          "DAY CARE CENTER"
+        ],
+        "sourceList": "CA Orgs (Child Facing)",
+        "is_role": false,
+        "touch": 1
+      },
+      "hubspot": {
+        "found": true,
+        "isCustomer": true,
+        "name": "Tonya Vorobets",
+        "company": "Only Love Children's Center",
+        "lastDealName": "Only Love Children's Center: HSI In-Person Pediatric First Aid | CPR/AED for All Ages (4/3/2026)",
+        "lastDealValue": 680.0,
+        "lastDealDate": "2026-02-26",
+        "lifecycleStage": "customer",
+        "error": false
+      }
+    },
+    {
+      "contact": {
+        "row": 5828,
+        "email": "ERNESTINA@CCCISJ.COM",
+        "firstName": "Ernestina",
+        "lastName": "Ramirez",
+        "firstNameRaw": "ERNESTINA",
+        "lastNameRaw": "RAMIREZ",
+        "company": "",
+        "tags": [
+          "Childcare Centers",
+          "DAY CARE CENTER"
+        ],
+        "sourceList": "CA Orgs (Child Facing)",
+        "is_role": false,
+        "touch": 1
+      },
+      "hubspot": {
+        "found": true,
+        "isCustomer": true,
+        "name": "Ernestina Ramirez",
+        "company": null,
+        "lastDealName": "CREATIVE CHILDCARE: In-Person CPR/AED and First Aid Training (9/20/2025)",
+        "lastDealValue": 850.0,
+        "lastDealDate": "2025-09-29",
+        "lifecycleStage": "customer",
+        "error": false
+      }
+    }
+  ],
   "last_roster_send": "2026-08-03",
   "daily_sent_count": {
     "2026-06-12": 497,
@@ -21,7 +109,8 @@
     "2026-08-03": 750,
     "2026-08-04": 750,
     "2026-08-05": 750,
-    "2026-08-06": 750
+    "2026-08-06": 750,
+    "2026-08-07": 492
   },
   "daily_reply_count": {
     "2026-06-15": 10,
@@ -61,14 +150,15 @@
   },
   "do_not_contact": [],
   "bounce_replacement_queue": [],
-  "sheet_cursor": 4596,
-  "last_daily_run": "2026-08-06",
+  "sheet_cursor": 5835,
+  "last_daily_run": "2026-08-07",
   "daily_new_count": {
     "2026-07-29": 750,
     "2026-07-30": 281,
     "2026-07-31": 750,
     "2026-08-05": 61,
-    "2026-08-06": 750
+    "2026-08-06": 750,
+    "2026-08-07": 209
   },
   "daily_bounce_count": {
     "2026-07-30": 292,
@@ -76,7 +166,8 @@
     "2026-08-03": 7,
     "2026-08-04": 5,
     "2026-08-05": 4,
-    "2026-08-06": 3
+    "2026-08-06": 3,
+    "2026-08-07": 255
   },
   "daily_sql_count": {
     "2026-07-30": 4,
@@ -93,7 +184,8 @@
     "2026-08-06": 2
   },
   "daily_customer_count": {
-    "2026-07-31": 2
+    "2026-07-31": 2,
+    "2026-08-07": 3
   },
   "last_report_run": "2026-08-05"
 }

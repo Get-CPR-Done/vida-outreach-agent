@@ -1556,6 +1556,10 @@ def check_replies(state, dry_run=False):
                                  last_result="replied (not SQL)")
 
                     full_name = (first + " " + last).strip()
+                    # Export data sometimes duplicates the name across both columns
+                    # ("Melody Melody") — don't hand that to Manae.
+                    if first and last and first.lower() == last.lower():
+                        full_name = first
                     lead_name = first or full_name       # prefer a first name if we have one
                     who       = lead_name or company or "A new contact"
                     them      = lead_name or "them"
@@ -1569,6 +1573,15 @@ def check_replies(state, dry_run=False):
                     _msg = (body_text or "").strip()
                     _msg = _msg[:4000] + ("\n…(truncated)" if len(_msg) > 4000 else "")
                     quoted = f"Here's the full exchange:\n\n---\n{_msg}\n---\n\n"
+                    # Manae replies straight out of this handoff, so the prospect's own
+                    # address (plus phone/company when the signature gave us one) goes
+                    # right under the intro — she asked for it 2026-08-11.
+                    contact_lines = [f"Email: {sender_email}"] if sender_email else []
+                    if phone:
+                        contact_lines.append(f"Phone: {phone}")
+                    if company:
+                        contact_lines.append(f"Company: {company}")
+                    contact_block = ("\n".join(contact_lines) + "\n\n") if contact_lines else ""
                     if interested:
                         # Only mention the HubSpot add when the write actually landed — never
                         # claim it happened if the write failed.
@@ -1585,7 +1598,7 @@ def check_replies(state, dry_run=False):
                             f"Hi Manae,\n\n"
                             f"{who} is interested in exploring training with us and will need "
                             f"more info — can you take it from here?\n\n"
-                            f"{hs_line}{quoted}"
+                            f"{contact_block}{hs_line}{quoted}"
                             f"Thanks!\n{SENDER_FIRST}"
                         )
                     else:
@@ -1593,7 +1606,7 @@ def check_replies(state, dry_run=False):
                         fwd_body = (
                             f"Hi Manae,\n\n"
                             f"{who} just replied to my outreach — no clear booking intent yet, "
-                            f"but wanted to flag it for you. {quoted}"
+                            f"but wanted to flag it for you.\n\n{contact_block}{quoted}"
                             f"Thanks!\n{SENDER_FIRST}"
                         )
                     if not dry_run:

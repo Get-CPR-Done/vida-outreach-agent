@@ -1404,12 +1404,17 @@ def check_replies(state, dry_run=False):
         log.warning(f"  Sheet unavailable for reply write-back: {e} (continuing without it)")
 
     def mark_row(addr, **fields):
-        """Write status back to the sheet row for this email address, if we can find it."""
+        """Write status back to the sheet row for this email address, if we can find it.
+        Any status change also stamps reply_date with today, so "which leads came in
+        today" is answerable from the sheet itself instead of only from the in-state
+        daily counters (which started mid-flight and bucket by run date)."""
         if dry_run or not svc:
             return
         r = email_index.get((addr or "").lower())
         if not r:
             return
+        if fields.get("reply_status") and "reply_date" not in fields:
+            fields["reply_date"] = today_str()
         try:
             sheets_db.update_row(svc, SPREADSHEET_ID, r, **fields)
         except Exception as e:
@@ -1521,6 +1526,16 @@ def check_replies(state, dry_run=False):
                     if row and svc:
                         try:
                             sf, sl = sheets_db.read_name(svc, SPREADSHEET_ID, row)
+                            # The purchased list has junk in the name columns: the same word in
+                            # both ("Melody"/"MELODY" → the "Melody Melody" handoff Chris caught
+                            # 2026-08-11), and first/last swapped on plenty of rows. When the
+                            # sheet's pair is that self-duplicate, trust the reply's own From
+                            # display name instead — the prospect typed that themselves.
+                            if sf and sl and sf.strip().lower() == sl.strip().lower():
+                                if sender_name:
+                                    sf, sl = first, last     # keep the From-header name
+                                else:
+                                    sl = ""                  # else at least don't say it twice
                             first, last = (sf or first), (sl or last)
                         except Exception:
                             pass
@@ -2088,6 +2103,9 @@ def run_report(dry_run=False):
         state["last_report_run"] = today
         save_state(state)
     svc = _sheet_service()
+    # Widen/label the managed columns before the snapshot read — Sheets errors on a read
+    # that runs past the grid edge, and the snapshot now reaches column R.
+    sheets_db.ensure_headers(svc, SPREADSHEET_ID)
     log.info("Report: reading sheet status snapshot...")
     snap = sheets_db.snapshot_status(svc, SPREADSHEET_ID)
     # Attribute rows to THIS agent: its partition AND date_sent >= its launch date. The row
@@ -2107,7 +2125,28 @@ def run_report(dry_run=False):
     unsub     = counts.get("Unsubscribed", 0)
     customers = counts.get("Customer", 0)
     awaiting  = counts.get("Contacted", 0)
-    sql_list  = sorted(e for e, v in snap.items() if v.get("reply_status") == "SQL")
+    # Name each SQL, not just its address, and say when it came in — this list is what
+    # Chris forwards to sales to confirm follow-up (Chris, 2026-08-11).
+    def _label(email, v):
+        f, l = _clean_name(v.get("first", "")), _clean_name(v.get("last", ""))
+        if f and l and f.lower() == l.lower():
+            l = ""
+        nm = (f + " " + l).strip()
+        when = (v.get("reply_date") or "")[:10]
+        return f"{nm + ' — ' if nm else ''}{email}{f' (in {when})' if when else ''}"
+    sql_rows  = {e: v for e, v in snap.items() if v.get("reply_status") == "SQL"}
+    sql_list  = [_label(e, v) for e, v in
+                 sorted(sql_rows.items(), key=lambda kv: (kv[1].get("reply_date") or "", kv[0]),
+                        reverse=True)]
+
+    # Reply-day counts read off the sheet's reply_date (column R) — the authoritative
+    # answer to "what came in today", since date_sent only records when we emailed out.
+    # The state counters remain the fallback for days before column R existed, and for
+    # any row whose stamp is missing; take the larger so a partial day never reads low.
+    def _by_reply_day(status):
+        return Counter((v.get("reply_date") or "")[:10] for v in snap.values()
+                       if v.get("reply_status") == status and v.get("reply_date"))
+    sql_days = _by_reply_day("SQL")
 
     dsc = state.get("daily_sent_count", {})
     drc = state.get("daily_reply_count", {})
@@ -2117,6 +2156,8 @@ def run_report(dry_run=False):
     uc  = state.get("daily_unsub_count", {})
     cc  = state.get("daily_customer_count", {})
     sent_total = sum(dsc.values())
+    sql_today = max(sql_days.get(today, 0), sqc.get(today, 0))
+    sql_7d    = max(_sum_recent(sql_days, 7), _sum_recent(sqc, 7))
 
     def pct(n, d):
         return f"{(100.0 * n / d):.1f}%" if d else "—"
@@ -2124,7 +2165,7 @@ def run_report(dry_run=False):
     def r(label, t, w, life):
         return f"  {label:<26}{t:>8,}{w:>11,}{life:>13,}\n"
 
-    subject = (f"[{SENDER_FIRST} Lead Dashboard] {today} — {sqc.get(today, 0)} SQLs today "
+    subject = (f"[{SENDER_FIRST} Lead Dashboard] {today} — {sql_today} SQLs today "
                f"({sql} lifetime), {dsc.get(today, 0):,} sent")
     body = (
         f"{SENDER_FIRST} — {COMPANY_NAME} outreach dashboard\n"
@@ -2135,7 +2176,7 @@ def run_report(dry_run=False):
         + r("Emails sent (all touches)", dsc.get(today, 0), _sum_recent(dsc, 7), sent_total)
         + r("New people reached",        nc.get(today, 0),  _sum_recent(nc, 7),  contacted)
         + r("Replies",                   drc.get(today, 0), _sum_recent(drc, 7), replied)
-        + r("Sales-Qualified Leads",     sqc.get(today, 0), _sum_recent(sqc, 7), sql)
+        + r("Sales-Qualified Leads",     sql_today, sql_7d, sql)
         + r("Existing cust -> Manae",    cc.get(today, 0),  _sum_recent(cc, 7),  customers)
         + r("Hard bounces",              bc.get(today, 0),  _sum_recent(bc, 7),  bounced)
         + r("Unsubscribes",              uc.get(today, 0),  _sum_recent(uc, 7),  unsub)
@@ -2145,9 +2186,10 @@ def run_report(dry_run=False):
         + f"SALES-QUALIFIED LEADS ({len(sql_list)}) — confirm Manae has reached out:\n"
         + (("\n".join(f"  - {e}" for e in sql_list)) if sql_list else "  (none yet)")
         + "\n\n"
-        f"Note: per-day counters for reached / SQLs / bounces / unsubscribes began\n"
-        f"{today}, so the TODAY and 7-DAY columns for those build up over the coming\n"
-        f"days. Emails-sent and replies are historical; LIFETIME is exact (live sheet).\n"
+        f"Note: SQL counts come from the sheet's reply_date column, so TODAY / 7-DAY /\n"
+        f"LIFETIME agree. The per-day counters for reached / bounces / unsubscribes began\n"
+        f"after launch, so those TODAY and 7-DAY columns can read low against LIFETIME,\n"
+        f"which is exact (live tracking sheet).\n"
         f"\n—{SENDER_FIRST} (automated). Full per-contact status is in the tracking sheet.\n"
     )
 
@@ -2173,7 +2215,7 @@ def run_report(dry_run=False):
         + hrow("Emails sent (all touches)", dsc.get(today, 0), _sum_recent(dsc, 7), sent_total)
         + hrow("New people reached", nc.get(today, 0), _sum_recent(nc, 7), contacted)
         + hrow("Replies", drc.get(today, 0), _sum_recent(drc, 7), replied)
-        + hrow("Sales-Qualified Leads", sqc.get(today, 0), _sum_recent(sqc, 7), sql, hi=True)
+        + hrow("Sales-Qualified Leads", sql_today, sql_7d, sql, hi=True)
         + hrow("Existing customers &rarr; Manae", cc.get(today, 0), _sum_recent(cc, 7), customers)
         + hrow("Hard bounces", bc.get(today, 0), _sum_recent(bc, 7), bounced)
         + hrow("Unsubscribes", uc.get(today, 0), _sum_recent(uc, 7), unsub)
@@ -2186,9 +2228,10 @@ def run_report(dry_run=False):
         + ("<ul style='margin:4px 0 0;padding-left:22px'>"
            + "".join(f"<li>{e}</li>" for e in sql_list) + "</ul>"
            if sql_list else "<p style='color:#888'>(none yet)</p>")
-        + f"<p style='color:#999;font-size:12px;max-width:560px'>Per-day counters for reached / "
-        f"SQLs / bounces / unsubscribes began {today}, so the Today &amp; 7-day columns for "
-        f"those fill in over the coming days. Lifetime is exact (live tracking sheet).</p>"
+        + f"<p style='color:#999;font-size:12px;max-width:560px'>SQL counts come from the "
+        f"tracking sheet's reply_date, so Today / 7-day / Lifetime all agree. Per-day counters "
+        f"for reached / bounces / unsubscribes began later than launch, so those Today &amp; "
+        f"7-day columns can read low against Lifetime, which is exact (live tracking sheet).</p>"
         "</div>"
     )
 
@@ -2204,7 +2247,7 @@ def run_report(dry_run=False):
         _pt("Emails sent (all touches)", dsc.get(today, 0), _sum_recent(dsc, 7), sent_total),
         _pt("New people reached", nc.get(today, 0),  _sum_recent(nc, 7),  contacted),
         _pt("Replies",        drc.get(today, 0), _sum_recent(drc, 7), replied),
-        _pt("SQLs",           sqc.get(today, 0), _sum_recent(sqc, 7), sql),
+        _pt("SQLs",           sql_today, sql_7d, sql),
         _pt("Cust → Manae",   cc.get(today, 0),  _sum_recent(cc, 7),  customers),
         _pt("Hard bounces",   bc.get(today, 0),  _sum_recent(bc, 7),  bounced),
         _pt("Unsubscribes",   uc.get(today, 0),  _sum_recent(uc, 7),  unsub),

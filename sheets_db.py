@@ -13,10 +13,14 @@ Column layout of `mailchimp_export` (1-indexed / A1):
   A email            H member_rating      O do_not_contact
   B first_name       I last_changed       P touches        (managed here)
   C last_name        J status (sub)       Q last_result    (managed here)
-  D company          K source_list
+  D company          K source_list        R reply_date     (managed here)
   E tags             L contacted
-  F avg_open_rate    M date_sent
+  F avg_open_rate    M date_sent     <- the day WE emailed them
   G avg_click_rate   N reply_status  <- pipeline status enum lives here
+
+reply_date (R) is the day the status in N was set — i.e. the day they replied and we
+handed them to sales. date_sent (M) only says when we emailed out, so without R there
+was no way to answer "which leads came in today" (Chris, 2026-08-11).
 """
 import json
 import os
@@ -29,15 +33,16 @@ COL = {
     "email": 0, "first": 1, "last": 2, "company": 3, "tags": 4,
     "open": 5, "click": 6, "rating": 7, "last_changed": 8, "sub_status": 9,
     "source_list": 10, "contacted": 11, "date_sent": 12, "reply_status": 13,
-    "do_not_contact": 14, "touches": 15, "last_result": 16,
+    "do_not_contact": 14, "touches": 15, "last_result": 16, "reply_date": 17,
 }
 # A1 letters for the writable fields (1-indexed columns)
 CELL = {
     "first": "B", "last": "C",
     "contacted": "L", "date_sent": "M", "reply_status": "N",
     "do_not_contact": "O", "touches": "P", "last_result": "Q",
+    "reply_date": "R",
 }
-LAST_COL = "Q"
+LAST_COL = "R"
 
 PLACEHOLDER_ADDRESSES = {
     "email@yourbusiness.com", "test@test.com", "example@example.com",
@@ -81,16 +86,47 @@ def _get(svc, spreadsheet_id, a1):
     return r.get("values", [])
 
 
+def ensure_columns(svc, spreadsheet_id, needed=18):
+    """Make sure the tab's grid is at least `needed` columns wide.
+
+    The Mailchimp export arrived exactly 17 columns wide (A..Q), and Sheets rejects a
+    write past the grid edge outright ("exceeds grid limits") rather than growing it —
+    so adding reply_date in R needs the grid widened first. Idempotent: reads the
+    current columnCount and appends only the shortfall.
+    """
+    meta = _retry(lambda: svc.spreadsheets().get(
+        spreadsheetId=spreadsheet_id, fields="sheets(properties)").execute())
+    for sh in meta.get("sheets", []):
+        props = sh.get("properties", {})
+        if props.get("title") != SHEET_TAB:
+            continue
+        have = props.get("gridProperties", {}).get("columnCount", 0)
+        if have >= needed:
+            return False
+        _retry(lambda: svc.spreadsheets().batchUpdate(
+            spreadsheetId=spreadsheet_id,
+            body={"requests": [{"appendDimension": {
+                "sheetId": props["sheetId"],
+                "dimension": "COLUMNS",
+                "length": needed - have,
+            }}]},
+        ).execute())
+        return True
+    raise RuntimeError(f"tab {SHEET_TAB} not found")
+
+
 def ensure_headers(svc, spreadsheet_id):
-    """Label the two columns we manage, if they aren't already."""
-    hdr = _get(svc, spreadsheet_id, "P1:Q1")
+    """Label the columns we manage, if they aren't already."""
+    ensure_columns(svc, spreadsheet_id, needed=len(COL))
+    want = ["touches", "last_result", "reply_date"]
+    hdr = _get(svc, spreadsheet_id, "P1:R1")
     row = hdr[0] if hdr else []
-    p = row[0] if len(row) > 0 else ""
-    q = row[1] if len(row) > 1 else ""
-    if p.strip().lower() != "touches" or q.strip().lower() != "last_result":
+    have = [(row[i].strip().lower() if i < len(row) and row[i] else "")
+            for i in range(len(want))]
+    if have != want:
         _retry(lambda: svc.spreadsheets().values().update(
-            spreadsheetId=spreadsheet_id, range=f"{SHEET_TAB}!P1:Q1",
-            valueInputOption="RAW", body={"values": [["touches", "last_result"]]},
+            spreadsheetId=spreadsheet_id, range=f"{SHEET_TAB}!P1:R1",
+            valueInputOption="RAW", body={"values": [want]},
         ).execute())
 
 
@@ -160,7 +196,7 @@ def update_row(svc, spreadsheet_id, row_number, **fields):
     """
     Write specific fields back to a single row. Accepts any of:
       first, last, contacted, date_sent, reply_status, do_not_contact,
-      touches, last_result
+      touches, last_result, reply_date
     Only the fields passed are written (no clobbering of the rest).
     """
     data = []
@@ -214,7 +250,7 @@ def snapshot_status(svc, spreadsheet_id, max_rows=200000):
     email_lower -> {row, contacted, reply_status, do_not_contact} for every valid
     row. One bulk read; used by the one-time reconcile so we never downgrade a row.
     """
-    rows = _get(svc, spreadsheet_id, f"A2:O{max_rows}")
+    rows = _get(svc, spreadsheet_id, f"A2:R{max_rows}")
     out = {}
     for offset, r in enumerate(rows):
         email = _cell(r, COL["email"])
@@ -226,6 +262,10 @@ def snapshot_status(svc, spreadsheet_id, max_rows=200000):
             "reply_status": _cell(r, COL["reply_status"]),
             "do_not_contact": _cell(r, COL["do_not_contact"]),
             "date_sent": _cell(r, COL["date_sent"]),
+            "reply_date": _cell(r, COL["reply_date"]),
+            "first": _cell(r, COL["first"]),
+            "last": _cell(r, COL["last"]),
+            "company": _cell(r, COL["company"]),
         }
     return out
 

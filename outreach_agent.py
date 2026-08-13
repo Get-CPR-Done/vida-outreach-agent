@@ -1404,8 +1404,11 @@ _HS_TRAFFIC_PROP = None  # cache: (property_internal_name, option_value) or (Non
 # lived only as one email in one inbox: nothing appeared in a queue, nothing measured a
 # response time, and a missed lead died silently (Chris, 2026-08-13). GCD = Manae.
 LEAD_OWNER_EMAIL = os.environ.get("LEAD_OWNER_EMAIL", "manae@getcprdone.com")
-# Hours after handoff that the owner's task comes due, and the point at which a lead with
-# no logged follow-up escalates to Chris.
+# When the owner's task comes due, and — separately — when a lead with no logged
+# follow-up escalates to Chris. The task is deliberately short-fused: it should be
+# sitting at the top of the queue within the half hour, long before the 12h escalation
+# that exists as a backstop, not as the target (Chris, 2026-08-13).
+TASK_DUE_MINUTES = int(os.environ.get("TASK_DUE_MINUTES", "30") or 30)
 STALL_HOURS = int(os.environ.get("STALL_HOURS", "12") or 12)
 
 TRAFFIC_SOURCE_PROP_LABEL   = os.environ.get("HS_TRAFFIC_SOURCE_LABEL", "Latest Traffic Source")
@@ -1443,13 +1446,13 @@ def _resolve_owner_id(email=None):
 
 
 def hubspot_create_followup_task(cid, owner_id, name, why):
-    """Put the handoff in the owner's HubSpot task queue, due in STALL_HOURS.
+    """Put the handoff in the owner's HubSpot task queue, due in TASK_DUE_MINUTES.
 
     Best-effort: a failure here never blocks the lead write or the handoff email.
     """
     if not cid or not owner_id:
         return ""
-    due_ms = int((time.time() + STALL_HOURS * 3600) * 1000)
+    due_ms = int((time.time() + TASK_DUE_MINUTES * 60) * 1000)
     props = {
         "hs_task_subject": f"Follow up: {name or 'new lead'} (CPR/First Aid enquiry)",
         "hs_task_body": (why or "Replied to outreach.") + " — handed over by " + SENDING_NAME,
@@ -2079,9 +2082,10 @@ def check_replies(state, dry_run=False):
                             f"{who} asked us something a quote or a date would answer — "
                             f"worth a reply today.\n\n"
                             f"What they asked: {reason}\n\n"
-                            f"I've put a task on your HubSpot queue, due in {STALL_HOURS} "
-                            f"hours. If nothing is logged against them by then, Chris gets a "
-                            f"note — that's a nudge on the system, not on you.\n\n"
+                            f"There's a task on your HubSpot queue for this one, due in "
+                            f"{TASK_DUE_MINUTES} minutes. If nothing is logged against them "
+                            f"{STALL_HOURS} hours from now, Chris gets a note — that's a "
+                            f"backstop on the system, not a stopwatch on you.\n\n"
                             if is_sql else
                             f"{who} replied warmly but hasn't asked for anything specific "
                             f"yet, so this is an FYI rather than a to-do. Filed as a "

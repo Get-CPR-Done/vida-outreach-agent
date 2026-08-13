@@ -113,6 +113,9 @@ jobs:
           # Elena (rows 62534..end, separate repo) never email the same prospect. Unset = unbounded.
           ROW_RANGE_START: ${{ vars.ROW_RANGE_START }}
           ROW_RANGE_END: ${{ vars.ROW_RANGE_END }}
+          # Cursor floor (repo variable, unset here). Re-applied on every state load so a
+          # jump to a specific row survives the state.json commit of an in-flight run.
+          SHEET_CURSOR_MIN: ${{ vars.SHEET_CURSOR_MIN }}
         run: |
           MODE=${{ steps.mode.outputs.mode }}
           DRY=${{ steps.mode.outputs.dry_run }}

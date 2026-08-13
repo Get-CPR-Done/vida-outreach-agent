@@ -192,6 +192,28 @@ def read_window(svc, spreadsheet_id, start_row, count):
     return contacts, last_row_read
 
 
+def read_range(svc, spreadsheet_id, start_row, end_row):
+    """Read rows start_row..end_row (inclusive) in ONE request and parse them.
+
+    The windowed read_window() costs one API call per 1,000 rows, which is fine when
+    walking a short stretch but blows the Sheets quota (60 reads/min/user) when the
+    stretch is tens of thousands of rows — e.g. the follow-up scan after a cursor jump
+    leaves a large never-contacted gap behind the cursor. One read handles the whole
+    span instead. Returns a list of contact dicts (unusable rows dropped).
+    """
+    if start_row < 2:
+        start_row = 2
+    if end_row < start_row:
+        return []
+    rows = _get(svc, spreadsheet_id, f"A{start_row}:{LAST_COL}{end_row}")
+    out = []
+    for offset, raw in enumerate(rows):
+        c = parse_row(start_row + offset, raw)
+        if c:
+            out.append(c)
+    return out
+
+
 def update_row(svc, spreadsheet_id, row_number, **fields):
     """
     Write specific fields back to a single row. Accepts any of:

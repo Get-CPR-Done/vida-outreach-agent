@@ -262,6 +262,31 @@ def segment_brief(company="", tags=None):
     return (seg, label, course, framing)
 
 
+# Short course names, for places where the full course line would not fit a sentence
+# (the fallback body). Same keys as SEGMENT_PLAYBOOK.
+SEGMENT_SHORT_COURSE = {
+    "hospital": "BLS for Healthcare Providers",
+    "skilled-nursing": "BLS for Healthcare Providers",
+    "home-health": "BLS for Healthcare Providers",
+    "hospice": "BLS for Healthcare Providers",
+    "dialysis": "BLS for Healthcare Providers",
+    "clinic": "BLS for Healthcare Providers",
+    "adult-day": "CPR/AED and First Aid",
+    "pediatric-facility": "pediatric CPR and First Aid",
+    "other-healthcare": "BLS for Healthcare Providers",
+    "center": "pediatric CPR and First Aid",
+    "home": "pediatric CPR and First Aid",
+    "school-age": "child CPR and First Aid",
+    "school": "staff CPR/AED and First Aid",
+    "camp": "staff CPR/AED and First Aid",
+}
+
+
+def short_course(company="", tags=None):
+    """The course line trimmed to something that reads naturally mid-sentence."""
+    return SEGMENT_SHORT_COURSE.get(infer_segment(company, tags), "CPR/AED and First Aid")
+
+
 INDUSTRY_MAP = [
     (["school","academy","learning","education","elementary","preschool","montessori","kipp","charter"],
      "school or educational organization — staff CPR/AED recertification before the school year"),
@@ -605,36 +630,31 @@ def fetch_followups(svc, state, needed):
     cursor = int(state.get("sheet_cursor", 2) or 2)
     today = pacific_today()
     out = []
-    row = ROW_RANGE_START
     # Only scan this agent's own partition, so it never follows up a row the other agent sent.
     scan_end = cursor if ROW_RANGE_END is None else min(cursor, ROW_RANGE_END + 1)
-    WINDOW = 1000
-    while row < scan_end and len(out) < needed:
-        count = min(WINDOW, scan_end - row)
-        rows, last = sheets_db.read_window(svc, SPREADSHEET_ID, row, count)
-        if last < row:
+    # ONE read for the whole span, not one per 1,000 rows. A cursor jump can leave tens of
+    # thousands of never-contacted rows behind the cursor (Elena, 2026-08-13), and windowed
+    # reads across that gap blow the 60-reads/min Sheets quota and kill the run outright.
+    for c in sheets_db.read_range(svc, SPREADSHEET_ID, ROW_RANGE_START, scan_end - 1):
+        if len(out) >= needed:
             break
-        for c in rows:
-            if c["do_not_contact"].lower() in ("yes", "true", "1", "y"):
-                continue
-            if not _due_for_followup(c, today):
-                continue
-            out.append({
-                "row": c["row"],
-                "email": c["email"],
-                "firstName": normalize_name(c["first_name"]),
-                "lastName": normalize_name(c["last_name"]),
-                "firstNameRaw": c["first_name"],
-                "lastNameRaw": c["last_name"],
-                "company": c["company"],
-                "tags": c["tags"],
-                "sourceList": c["source_list"],
-                "is_role": is_role_address(c["email"]),
-                "touch": int(c["touches"]) + 1,
-            })
-            if len(out) >= needed:
-                break
-        row = last + 1
+        if c["do_not_contact"].lower() in ("yes", "true", "1", "y"):
+            continue
+        if not _due_for_followup(c, today):
+            continue
+        out.append({
+            "row": c["row"],
+            "email": c["email"],
+            "firstName": normalize_name(c["first_name"]),
+            "lastName": normalize_name(c["last_name"]),
+            "firstNameRaw": c["first_name"],
+            "lastNameRaw": c["last_name"],
+            "company": c["company"],
+            "tags": c["tags"],
+            "sourceList": c["source_list"],
+            "is_role": is_role_address(c["email"]),
+            "touch": int(c["touches"]) + 1,
+        })
     log.info(f"  Follow-up scan (rows {ROW_RANGE_START}-{scan_end - 1}): {len(out)} due for next touch")
     return out
 
@@ -859,10 +879,10 @@ def fallback_body(contact):
     company = contact.get("company") or "your team"
     # Even the fallback should name the right course line — a hospital getting a
     # "CPR/AED training" note reads as a wrong-list send.
-    _, _, course_line, _ = segment_brief(contact.get("company", ""), contact.get("tags", []))
+    course = short_course(contact.get("company", ""), contact.get("tags", []))
     return (
         f"Hi {first},\n\n"
-        f"Wanted to check in — is {company} due for {course_line} this year? "
+        f"Wanted to check in — is {company} due for {course} this year? "
         f"We work with organizations across the country and can usually schedule within a few weeks.\n\n"
         f"Happy to answer any questions or send over details.\n\n"
         f"{SENDING_NAME} | {COMPANY_NAME}"

@@ -382,6 +382,18 @@ def _normalize_state(raw: dict) -> dict:
     }
     state.update(raw)
 
+    # Cursor floor. A live agent commits state.json back to its repo at the end of every
+    # run, so hand-editing sheet_cursor loses a race with any run already in flight
+    # (hit on 2026-08-13: a send that started at 9:51a would have overwritten the jump to
+    # the healthcare block). SHEET_CURSOR_MIN, set as a repo variable, is re-applied on
+    # every load instead, so it survives those commits. To deliberately send the cursor
+    # BACKWARD later — e.g. to reclaim the rows skipped by a jump, see state
+    # "skipped_ranges" — clear or lower this variable first, or it will pull the cursor
+    # straight back to the floor.
+    floor = int(os.environ.get("SHEET_CURSOR_MIN", "0") or 0)
+    if floor and int(state.get("sheet_cursor", 0) or 0) < floor:
+        state["sheet_cursor"] = floor
+
     # Merge legacy 'contacted' key into 'contacted_emails'
     legacy_contacted = raw.get("contacted", [])
     if legacy_contacted:

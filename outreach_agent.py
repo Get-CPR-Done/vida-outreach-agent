@@ -117,6 +117,151 @@ GEN_MODEL = "claude-haiku-4-5"
 MANAE_CALENDAR_LINK = os.environ.get("MANAE_CALENDAR_LINK") or \
     "https://meetings.hubspot.com/manae-deguchi?uuid=76b99631-517e-4aa3-baa3-537375a5db77"
 
+# ─── Segment → course line ───────────────────────────────────────────────────
+# The list is no longer one kind of buyer. A skilled nursing facility renews AHA BLS
+# for Healthcare Providers on a two-year clock; a preschool needs pediatric CPR/First
+# Aid to satisfy its licensor. Saying "CPR and First Aid class" to a hospital reads as
+# someone who doesn't know the field, and "BLS provider card" means nothing to a camp.
+# So each contact carries a canonical segment in its TAGS (written by the registry
+# importer, see ~/registry-imports/build_import.py) and the generator is told the right
+# course line and framing for that segment (Chris, 2026-08-13).
+#
+# Each entry: canonical segment -> (what they are, the course line to name, what to talk about)
+SEGMENT_PLAYBOOK = {
+    "hospital": (
+        "acute-care hospital",
+        "AHA BLS for Healthcare Providers, with ACLS and PALS for clinical staff who need them",
+        "onboarding cohorts of new clinical hires, keeping per-diem and travel staff current, "
+        "and running skills sessions on-site across shifts",
+    ),
+    "skilled-nursing": (
+        "skilled nursing / long-term care facility",
+        "AHA BLS for Healthcare Providers (two-year renewal cycle)",
+        "nurses and aides whose cards all seem to expire in different months, staffing the "
+        "floor while people train, and being survey-ready without a scramble",
+    ),
+    "home-health": (
+        "home health agency",
+        "AHA BLS for Healthcare Providers",
+        "field clinicians who are rarely in the office at the same time, and onboarding "
+        "new hires quickly so they can start seeing patients",
+    ),
+    "hospice": (
+        "hospice provider",
+        "AHA BLS for Healthcare Providers",
+        "field staff spread across a wide service area and keeping renewals from piling up",
+    ),
+    "dialysis": (
+        "dialysis clinic",
+        "AHA BLS for Healthcare Providers",
+        "keeping every clinical staff member current without closing chair time",
+    ),
+    "clinic": (
+        "outpatient clinic",
+        "AHA BLS for Healthcare Providers (and CPR/AED for non-clinical front-office staff)",
+        "clinical staff renewals plus front-desk teams who are often first to reach someone "
+        "in the waiting room",
+    ),
+    "adult-day": (
+        "adult day health center",
+        "CPR/AED and First Aid for staff, plus BLS for any licensed clinical staff",
+        "participants with complex medical needs and staff who need to respond confidently",
+    ),
+    "pediatric-facility": (
+        "pediatric day health / respite facility",
+        "pediatric CPR/AED and First Aid, plus BLS for licensed clinical staff",
+        "medically complex children and staff coverage across shifts",
+    ),
+    "other-healthcare": (
+        "licensed healthcare facility",
+        "AHA BLS for Healthcare Providers",
+        "keeping clinical staff current without pulling them off the floor for a whole day",
+    ),
+    "center": (
+        "licensed child care center or preschool",
+        "pediatric CPR, AED and First Aid that satisfies their state licensing requirement",
+        "keeping every teacher current for licensing, covering ratios while staff train, and "
+        "infant/child skills specifically rather than generic adult CPR",
+    ),
+    "home": (
+        "family child care home",
+        "pediatric CPR, AED and First Aid for licensing",
+        "being a one- or two-person operation where finding a class that fits around child "
+        "care hours is the whole problem",
+    ),
+    "school-age": (
+        "school-age / before-and-after-school program",
+        "pediatric and child CPR, AED and First Aid for program staff",
+        "seasonal staff turnover and getting new hires certified before the session starts",
+    ),
+    "school": (
+        "school",
+        "staff CPR, AED and First Aid",
+        "getting staff recertified before the school year, and coaches and athletic staff "
+        "who need AED confidence on the field",
+    ),
+    "camp": (
+        "camp",
+        "camp staff CPR, AED and First Aid (wilderness/remote first aid where relevant)",
+        "certifying counselors before the season opens, on a timeline that fits staff training week",
+    ),
+}
+
+# Coarse segment aliases seen in TAGS. The importer writes "healthcare|skilled-nursing|CA|..."
+# so the specific token wins; the bare "healthcare"/"childcare" token is the fallback.
+SEGMENT_ALIASES = {
+    "healthcare": "other-healthcare",
+    "childcare": "center",
+    "daycare": "center",
+}
+
+
+def infer_segment(company="", tags=None):
+    """Canonical segment for a contact, or "" when we genuinely don't know.
+
+    Prefers an explicit token in TAGS (registry imports write one) over guessing from
+    the company name, because the registry knows the facility's licensed type and a
+    name like "Sunrise Center" tells us nothing.
+    """
+    toks = [t.strip().lower() for t in (tags or []) if t and t.strip()]
+    for t in toks:                                  # specific segment token wins
+        if t in SEGMENT_PLAYBOOK:
+            return t
+    for t in toks:                                  # coarse token as fallback
+        if t in SEGMENT_ALIASES:
+            return SEGMENT_ALIASES[t]
+    text = (company or "").lower()
+    if any(k in text for k in ("hospital", "medical center")):
+        return "hospital"
+    if any(k in text for k in ("nursing", "post acute", "post-acute", "convalescent",
+                               "rehabilitation center", "care center")):
+        return "skilled-nursing"
+    if any(k in text for k in ("home health", "home care")):
+        return "home-health"
+    if "hospice" in text:
+        return "hospice"
+    if any(k in text for k in ("clinic", "dental", "urgent care", "surgery center")):
+        return "clinic"
+    if any(k in text for k in ("camp",)):
+        return "camp"
+    if any(k in text for k in ("preschool", "montessori", "child care", "childcare",
+                               "daycare", "day care", "learning center", "early learning")):
+        return "center"
+    if any(k in text for k in ("school", "academy", "elementary", "charter", "district")):
+        return "school"
+    return ""
+
+
+def segment_brief(company="", tags=None):
+    """(segment, what-they-are, course-line, what-to-talk-about) for the prompt."""
+    seg = infer_segment(company, tags)
+    if not seg:
+        return ("", "", "CPR, AED and First Aid for their team",
+                "general workplace readiness — whoever is nearest when something happens")
+    label, course, framing = SEGMENT_PLAYBOOK[seg]
+    return (seg, label, course, framing)
+
+
 INDUSTRY_MAP = [
     (["school","academy","learning","education","elementary","preschool","montessori","kipp","charter"],
      "school or educational organization — staff CPR/AED recertification before the school year"),
@@ -712,9 +857,12 @@ FALLBACK_SUBJECT = "Quick question about CPR training"
 def fallback_body(contact):
     first = contact.get("firstName") or "there"
     company = contact.get("company") or "your team"
+    # Even the fallback should name the right course line — a hospital getting a
+    # "CPR/AED training" note reads as a wrong-list send.
+    _, _, course_line, _ = segment_brief(contact.get("company", ""), contact.get("tags", []))
     return (
         f"Hi {first},\n\n"
-        f"Wanted to check in — is {company} due for CPR/AED training this year? "
+        f"Wanted to check in — is {company} due for {course_line} this year? "
         f"We work with organizations across the country and can usually schedule within a few weeks.\n\n"
         f"Happy to answer any questions or send over details.\n\n"
         f"{SENDING_NAME} | {COMPANY_NAME}"
@@ -782,6 +930,24 @@ def generate_emails_batch(contacts):
         "not hard-close, and never mention price. Lead with a genuine question or a credible "
         "observation about teams like theirs. Prevention-first and confidence-building; never "
         "fear-based or liability-based.\n\n"
+        "COURSE LINE — speak the language of the org you're writing to. Each contact "
+        "carries an 'orgType', a 'courseLine', and 'whatMattersToThem'. Name the course "
+        "line the way that org's own staff would say it, and build the note around what "
+        "matters to them:\n"
+        "  - Clinical / healthcare orgs (hospitals, skilled nursing, home health, hospice, "
+        "dialysis, clinics) certify staff in BLS — AHA BLS for Healthcare Providers, on a "
+        "two-year renewal. Call it BLS. Do NOT pitch them a 'CPR and First Aid class' or "
+        "anything pediatric-flavored; they will read it as someone who doesn't know their "
+        "world. Talk about clinical staff, renewals, onboarding cohorts, shift coverage.\n"
+        "  - Child care centers, preschools and family child care homes need pediatric CPR, "
+        "AED and First Aid to satisfy a licensor. Never call that BLS.\n"
+        "  - Schools and school-age programs: staff CPR/AED and First Aid, timed to the "
+        "school year; coaches and athletic staff for AED.\n"
+        "  - Camps: certifying counselors before the season.\n"
+        "  - If orgType is unknown, stay general (CPR/AED and First Aid) and do not guess "
+        "at a specialty.\n"
+        "Use the terminology naturally in ONE place — do not stack credentials or list "
+        "course names like a catalog.\n\n"
         "Pick ONE problem framing that best fits the org and use it naturally:\n"
         "  - Coordination burden: one person gets stuck finding training, scheduling, and "
         "tracking who's current.\n"
@@ -793,7 +959,8 @@ def generate_emails_batch(contacts):
         "  2 = short follow-up (2-3 sentences) gently resurfacing the first note; assume "
         "they may have missed it, no guilt-trip.\n"
         f"  3 = value email — you may cite this TRUE proof point (tailor which audience you "
-        f"emphasize to their org type): \"{PROOF_POINT}\". Then share the KIND of outcome we "
+        f"emphasize to their org type; for clinical orgs lean on the AHA alignment instead, "
+        f"since AHA is the standard their BLS cards come from): \"{PROOF_POINT}\". Then share the KIND of outcome we "
         "typically deliver (we take the compliance coordination off their plate; staff who "
         "are genuinely ready in an emergency). Do NOT invent specific schools, names, "
         "numbers, or testimonials beyond that proof point.\n"
@@ -839,6 +1006,8 @@ def generate_emails_batch(contacts):
     contact_list = []
     for i, c in enumerate(contacts):
         industry = infer_industry(c.get("company", ""), c.get("tags", []))
+        seg, seg_label, course_line, seg_framing = segment_brief(
+            c.get("company", ""), c.get("tags", []))
         contact_list.append({
             "index": i,
             "touch": c.get("touch", 1),
@@ -848,6 +1017,9 @@ def generate_emails_batch(contacts):
             "lastName": c.get("lastNameRaw") or c.get("lastName") or "",
             "company": c.get("company") or "your organization",
             "industry": industry,
+            "orgType": seg_label or "unknown",
+            "courseLine": course_line,
+            "whatMattersToThem": seg_framing,
             "tags": ", ".join(c.get("tags", [])) or "none",
             "sourceList": c.get("sourceList", "unknown"),
         })

@@ -489,6 +489,11 @@ try:
     _PT = ZoneInfo("America/Los_Angeles")
 except Exception:
     _PT = None
+def pacific_now():
+    """Timezone-aware 'now' in Pacific, falling back to naive local time if the tz
+    database isn't available (same fallback as pacific_today)."""
+    return datetime.now(_PT) if _PT else datetime.now()
+
 def pacific_today():
     """The agent's business day in Pacific time. Fixes the UTC-boundary bug: server
     UTC rolls over at 5pm PT, so the 7pm PT report used to see 'tomorrow' and report
@@ -1317,7 +1322,9 @@ def _reply_body(msg):
 
 def classify_interest(subject, body_text):
     """
-    Triage a genuine-looking inbound reply. Returns (is_auto, opt_out, interested, reason).
+    Triage a genuine-looking inbound reply.
+    Returns (is_auto, opt_out, interested, tier, reason), where tier is "sql" for a real
+    buying signal, "potential" for a warm reply with no ask, or "" when not interested.
       is_auto    = automated / no-action message (auto-ack, OOO, email-change notice,
                    ticket confirmation) that Manae does NOT need.
       opt_out    = the person wants off the list (stop / remove me / unsubscribe).
@@ -1328,14 +1335,15 @@ def classify_interest(subject, body_text):
     # Never guess "interested" from an empty/blank body — that manufactured a bogus SQL
     # (Barbara, 2026-08-05). Forward it for a human to eyeball instead; no HubSpot write.
     if not (body_text or "").strip():
-        return False, False, False, "no readable message body — needs human review"
+        return False, False, False, "", "no readable message body — needs human review"
     try:
         payload = {
             "model": GEN_MODEL,
             "max_tokens": 150,
             "system": (
                 "You triage inbound replies to a CPR-training outreach email. Return ONLY "
-                'JSON: {"auto": bool, "opt_out": bool, "interested": bool, "reason": "<=12 words"}.\n'
+                'JSON: {"auto": bool, "opt_out": bool, "interested": bool, '
+                '"buying_signal": bool, "reason": "<=12 words"}.\n'
                 "auto = an automated/no-action message (out-of-office, 'thanks for reaching "
                 "out' autoresponder, email-address-change or 'update your records' notice, "
                 "ticket/case confirmation, no-reply/bulk). false for a genuine human reply.\n"
@@ -1351,7 +1359,17 @@ def classify_interest(subject, body_text):
                 "'send info', 'we might be interested', looping in a colleague, or anything "
                 "that opens a real conversation. Only a flat rejection ('not interested', "
                 "'no thanks'), an opt_out, or an auto/unrelated message is NOT interested. "
-                "When unsure between interested and not, lean interested — a human reviews it."
+                "When unsure between interested and not, lean interested — a human reviews it.\n"
+                "buying_signal = true ONLY when the reply contains something a salesperson "
+                "can act on TODAY: asks what it costs / for a quote, asks about dates, "
+                "availability or scheduling a class, states how many people need training, "
+                "or asks to book or sign up. Everything else is false — 'send me info', "
+                "'tell me more', 'what do you offer', naming who handles this, forwarding us "
+                "to a colleague, or confirming they train annually are all interested=true "
+                "but buying_signal=false. A reply that defers to a future date ('next year', "
+                "'at our renewal in March') is buying_signal=false even if it mentions cost. "
+                "Do NOT lean true here: this flag decides whether a human is asked to drop "
+                "what they are doing, and a false positive costs us their trust in the queue."
             ),
             "messages": [{"role": "user", "content": f"Subject: {subject}\n\n{body_text[:1500]}"}],
         }
@@ -1365,10 +1383,13 @@ def classify_interest(subject, body_text):
             if cleaned.startswith("json"):
                 cleaned = cleaned[4:]
         r = json.loads(cleaned.strip())
-        return bool(r.get("auto")), bool(r.get("opt_out")), bool(r.get("interested")), r.get("reason", "")
+        interested = bool(r.get("interested"))
+        tier = ("sql" if bool(r.get("buying_signal")) else "potential") if interested else ""
+        return (bool(r.get("auto")), bool(r.get("opt_out")), interested, tier,
+                r.get("reason", ""))
     except Exception as e:
         log.warning(f"  Reply triage failed: {e} — forwarding to Manae to be safe")
-        return False, False, False, "classifier error"
+        return False, False, False, "", "classifier error"
 
 _HS_PORTAL = None
 _HS_TRAFFIC_PROP = None  # cache: (property_internal_name, option_value) or (None, None)
@@ -1378,8 +1399,206 @@ _HS_TRAFFIC_PROP = None  # cache: (property_internal_name, option_value) or (Non
 # these labels at runtime so a rename in HubSpot doesn't silently break attribution.
 # GCD's HubSpot has a built-in, writable "Latest Traffic Source" (hs_latest_source) enum
 # whose options include "AI Referrals". That's the field we stamp on Vida-sourced leads.
+# Every lead we hand over gets an owner in HubSpot and a task in that owner's queue.
+# Before this, the SQL write set lifecycle + lead status and nothing else, so a handoff
+# lived only as one email in one inbox: nothing appeared in a queue, nothing measured a
+# response time, and a missed lead died silently (Chris, 2026-08-13). GCD = Manae.
+LEAD_OWNER_EMAIL = os.environ.get("LEAD_OWNER_EMAIL", "manae@getcprdone.com")
+# Hours after handoff that the owner's task comes due, and the point at which a lead with
+# no logged follow-up escalates to Chris.
+STALL_HOURS = int(os.environ.get("STALL_HOURS", "12") or 12)
+
 TRAFFIC_SOURCE_PROP_LABEL   = os.environ.get("HS_TRAFFIC_SOURCE_LABEL", "Latest Traffic Source")
 TRAFFIC_SOURCE_OPTION_LABEL = os.environ.get("HS_TRAFFIC_SOURCE_OPTION", "AI Referrals")
+
+_HS_OWNER_ID = None
+
+def _resolve_owner_id(email=None):
+    """HubSpot owner id for the person who works our leads, resolved by email.
+
+    Cached for the process. Returns "" when the lookup fails or the address isn't a
+    HubSpot user — the caller then writes the lead without an owner rather than losing
+    the whole record.
+    """
+    global _HS_OWNER_ID
+    if _HS_OWNER_ID is not None:
+        return _HS_OWNER_ID
+    _HS_OWNER_ID = ""
+    want = (email or LEAD_OWNER_EMAIL or "").strip().lower()
+    if not want or not HUBSPOT_TOKEN:
+        return _HS_OWNER_ID
+    try:
+        data = http_get("https://api.hubapi.com/crm/v3/owners?limit=200",
+                        {"Authorization": f"Bearer {HUBSPOT_TOKEN}"})
+        for o in data.get("results", []):
+            if (o.get("email") or "").strip().lower() == want:
+                _HS_OWNER_ID = str(o.get("id", ""))
+                log.info(f"    HubSpot owner resolved: {want} -> {_HS_OWNER_ID}")
+                return _HS_OWNER_ID
+        log.warning(f"    HubSpot owner {want} not found among portal users — "
+                    f"leads will be written without an owner")
+    except Exception as e:
+        log.warning(f"    HubSpot owner lookup failed: {e}")
+    return _HS_OWNER_ID
+
+
+def hubspot_create_followup_task(cid, owner_id, name, why):
+    """Put the handoff in the owner's HubSpot task queue, due in STALL_HOURS.
+
+    Best-effort: a failure here never blocks the lead write or the handoff email.
+    """
+    if not cid or not owner_id:
+        return ""
+    due_ms = int((time.time() + STALL_HOURS * 3600) * 1000)
+    props = {
+        "hs_task_subject": f"Follow up: {name or 'new lead'} (CPR/First Aid enquiry)",
+        "hs_task_body": (why or "Replied to outreach.") + " — handed over by " + SENDING_NAME,
+        "hs_task_status": "NOT_STARTED",
+        "hs_task_priority": "HIGH",
+        "hs_task_type": "EMAIL",
+        "hs_timestamp": due_ms,
+        "hubspot_owner_id": owner_id,
+    }
+    body = {"properties": props, "associations": [{
+        "to": {"id": cid},
+        "types": [{"associationCategory": "HUBSPOT_DEFINED", "associationTypeId": 204}],
+    }]}
+    try:
+        st, data = http_post_raw("https://api.hubapi.com/crm/v3/objects/tasks",
+                                 {"Authorization": f"Bearer {HUBSPOT_TOKEN}",
+                                  "Content-Type": "application/json"}, body)
+        if st in (200, 201):
+            return str(data.get("id", ""))
+        log.warning(f"    HubSpot task create failed ({st}): {str(data)[:180]}")
+    except Exception as e:
+        log.warning(f"    HubSpot task create failed: {e}")
+    return ""
+
+
+def _track_open_lead(state, email, cid, name, company, why):
+    """Remember a handed-over SQL so we can check that somebody actually worked it."""
+    open_leads = state.get("open_leads", [])
+    if any((l.get("email") or "").lower() == (email or "").lower() and not l.get("closed")
+           for l in open_leads):
+        return
+    open_leads.append({
+        "email": email, "cid": cid, "name": name, "company": company, "why": why,
+        "handed_at": pacific_now().isoformat(timespec="seconds"),
+        "alerted": False, "closed": False,
+    })
+    state["open_leads"] = open_leads
+
+
+def _hubspot_followup_state(cid):
+    """Has anyone touched this contact since we handed it over?
+
+    Reads the sales-activity timestamps HubSpot maintains plus the lead status, so a call,
+    an email, a logged note or a status change all count. Returns
+    (touched_at_epoch_ms_or_0, lead_status, lifecycle) — (None, "", "") if unreadable, and
+    the caller then leaves the lead alone rather than crying wolf on an API failure.
+    """
+    if not cid or not HUBSPOT_TOKEN:
+        return None, "", ""
+    props = ["notes_last_contacted", "hs_last_sales_activity_timestamp",
+             "hs_lead_status", "lifecyclestage", "num_notes"]
+    url = (f"https://api.hubapi.com/crm/v3/objects/contacts/{cid}"
+           f"?properties={','.join(props)}")
+    try:
+        data = http_get(url, {"Authorization": f"Bearer {HUBSPOT_TOKEN}"})
+    except Exception as e:
+        log.warning(f"  stall check: could not read contact {cid}: {e}")
+        return None, "", ""
+    pr = data.get("properties", {}) or {}
+
+    def _ms(v):
+        if not v:
+            return 0
+        try:                                   # HubSpot returns ISO-8601 on v3 reads
+            return int(datetime.fromisoformat(str(v).replace("Z", "+00:00")).timestamp() * 1000)
+        except Exception:
+            try:
+                return int(v)
+            except Exception:
+                return 0
+    touched = max(_ms(pr.get("notes_last_contacted")),
+                  _ms(pr.get("hs_last_sales_activity_timestamp")))
+    return touched, (pr.get("hs_lead_status") or ""), (pr.get("lifecyclestage") or "")
+
+
+def check_stalled_leads(state, dry_run=False):
+    """Escalate any handed-over SQL with no logged follow-up after STALL_HOURS.
+
+    Emails Chris and copies the lead owner, once per lead. This is the safety net that did
+    not exist: once a row was marked SQL nothing ever looked at it again, so a missed lead
+    was invisible (Chris, 2026-08-13).
+    """
+    open_leads = state.get("open_leads", [])
+    if not open_leads:
+        return 0
+    now = pacific_now()
+    stalled, closed = [], 0
+    for lead in open_leads:
+        if lead.get("closed") or lead.get("alerted"):
+            continue
+        try:
+            handed = datetime.fromisoformat(lead["handed_at"])
+        except Exception:
+            lead["closed"] = True
+            continue
+        hours = (now - handed).total_seconds() / 3600.0
+        if hours < STALL_HOURS:
+            continue
+        touched, lead_status, lifecycle = _hubspot_followup_state(lead.get("cid"))
+        if touched is None:
+            continue                            # unreadable — don't guess, try next run
+        worked = (touched > int(handed.timestamp() * 1000)
+                  or (lead_status or "").upper() not in ("", "NEW")
+                  or (lifecycle or "") in ("opportunity", "customer"))
+        if worked:
+            lead["closed"] = True
+            closed += 1
+            log.info(f"  stall check: {redact_email(lead['email'])} was worked — clearing")
+        else:
+            lead["alerted"] = True
+            stalled.append((lead, hours))
+    if closed or stalled:
+        state["open_leads"] = [l for l in open_leads
+                              if not (l.get("closed") and l.get("alerted") is False)]
+        if not dry_run:
+            save_state(state)
+    if not stalled:
+        return 0
+
+    lines = []
+    for lead, hours in stalled:
+        link = _hubspot_link(lead.get("cid"))
+        lines.append(
+            f"{lead.get('name') or lead.get('company') or 'Lead'} — {lead['email']}\n"
+            f"    asked: {lead.get('why') or 'replied to outreach'}\n"
+            f"    handed over: {lead['handed_at'][:16].replace('T', ' ')} "
+            f"({hours:.0f}h ago)\n"
+            + (f"    {link}\n" if link else "")
+        )
+    subject = (f"[{int(STALL_HOURS)}h no follow-up] {len(stalled)} lead"
+               f"{'s' if len(stalled) != 1 else ''} waiting — "
+               + (stalled[0][0].get("name") or stalled[0][0]["email"]))
+    body = (
+        f"These leads asked us something concrete and have no logged follow-up in HubSpot "
+        f"{int(STALL_HOURS)} hours after handoff:\n\n"
+        + "\n".join(lines)
+        + f"\nEach one has a HubSpot task on {LEAD_OWNER_EMAIL}. Nothing has been logged "
+        f"against the contact — a reply sent from outside HubSpot won't show here, so this "
+        f"may be a logging gap rather than a missed lead.\n\n"
+        f"— {SENDING_NAME} (automated watch on handed-over leads)\n"
+    )
+    if dry_run:
+        log.info(f"[DRY RUN] stall alert would go to {CHRIS_EMAIL} (cc {LEAD_OWNER_EMAIL}):"
+                 f"\n{subject}\n{body}")
+    else:
+        send_email(CHRIS_EMAIL, subject, body, cc=LEAD_OWNER_EMAIL)
+        log.info(f"  stall check: escalated {len(stalled)} lead(s) to Chris")
+    return len(stalled)
+
 
 def _resolve_traffic_source_prop():
     """Resolve the internal (property_name, option_value) for stamping AI-sourced leads
@@ -1458,13 +1677,26 @@ def _extract_phone(text):
     m = re.search(r'(?:\+?1[\s.\-]?)?\(?\d{3}\)?[\s.\-]?\d{3}[\s.\-]?\d{4}', text)
     return m.group(0).strip() if m else ""
 
-def hubspot_upsert_sql(email, first="", last="", company="", phone=""):
-    """Create or update a HubSpot contact as a Sales-Qualified Lead. Returns the contact
-    id (for a record link) or '' on failure. Needs contacts write scope."""
+def hubspot_upsert_sql(email, first="", last="", company="", phone="",
+                       stage="salesqualifiedlead", why=""):
+    """Create or update a HubSpot contact as a lead. Returns the contact id (for a record
+    link) or '' on failure. Needs contacts write scope.
+
+    stage: "salesqualifiedlead" for a real buying signal (asked price / dates / headcount)
+    or "marketingqualifiedlead" for a warm reply with no ask. Everything that engaged used
+    to be written as SQL, which inflated the pipeline and taught sales to distrust the
+    label — 27 of the first 46 "SQLs" had no buying signal in them (Chris, 2026-08-13).
+
+    Only true SQLs get an owner task; an MQL still gets the owner so it has a home.
+    """
     headers = {"Authorization": f"Bearer {HUBSPOT_TOKEN}", "Content-Type": "application/json"}
-    # Lifecycle = SQL, Lead Status = NEW. Original Traffic Source = AI Referral (stamped
-    # only when GCD's HubSpot has that writable property/option — resolved by label).
-    props = {"email": email, "lifecyclestage": "salesqualifiedlead", "hs_lead_status": "NEW"}
+    # Lifecycle stage per the tier above, Lead Status = NEW. Original Traffic Source =
+    # AI Referral (stamped only when GCD's HubSpot has that writable property/option —
+    # resolved by label).
+    props = {"email": email, "lifecyclestage": stage, "hs_lead_status": "NEW"}
+    owner_id = _resolve_owner_id()
+    if owner_id:
+        props["hubspot_owner_id"] = owner_id
     if first:   props["firstname"] = first
     if last:    props["lastname"]  = last
     if company: props["company"]   = company
@@ -1486,13 +1718,21 @@ def hubspot_upsert_sql(email, first="", last="", company="", phone=""):
                 data=body, headers=headers, method="PATCH")
             with urllib.request.urlopen(req, timeout=60, context=ssl_ctx()) as r:
                 r.read()
-            log.info(f"    HubSpot: updated {redact_email(email)} → SQL")
+            log.info(f"    HubSpot: updated {redact_email(email)} → {stage}"
+                     + (f" (owner {owner_id})" if owner_id else " (no owner)"))
+            if stage == "salesqualifiedlead":
+                hubspot_create_followup_task(cid, owner_id,
+                                             (first + " " + last).strip() or company, why)
             return cid
         st, cdata = http_post_raw("https://api.hubapi.com/crm/v3/objects/contacts", headers,
                                   {"properties": props})
         if st in (200, 201):
             cid = str(cdata.get("id", ""))
-            log.info(f"    HubSpot: created {redact_email(email)} → SQL")
+            log.info(f"    HubSpot: created {redact_email(email)} → {stage}"
+                     + (f" (owner {owner_id})" if owner_id else " (no owner)"))
+            if stage == "salesqualifiedlead":
+                hubspot_create_followup_task(cid, owner_id,
+                                             (first + " " + last).strip() or company, why)
             return cid
         log.info(f"    HubSpot: create FAILED ({st}) {redact_email(email)}")
         return ""
@@ -1640,6 +1880,7 @@ def check_replies(state, dry_run=False):
         log.info(f"  {len(all_mids)} unread messages in inbox")
 
         genuine_count = sql_count = archived_count = unsubscribe_count = 0
+        potential_count = 0
         today = today_str()
 
         for mid in all_mids:
@@ -1700,7 +1941,7 @@ def check_replies(state, dry_run=False):
                             archive_message(mail, mid)
                         archived_count += 1
                         continue
-                    auto, opt_out, interested, reason = classify_interest(subject, body_text)
+                    auto, opt_out, interested, tier, reason = classify_interest(subject, body_text)
                     if auto:
                         log.info(f"  Auto-reply from {redact_email(sender_email)} — archiving, not forwarding")
                         if not dry_run:
@@ -1756,19 +1997,37 @@ def check_replies(state, dry_run=False):
                     first = _clean_name(first)
                     last  = _clean_name(last)
 
+                    is_sql = interested and tier == "sql"
                     if interested:
-                        log.info(f"  SQL from {redact_email(sender_email)} ({reason}) → HubSpot + Manae")
+                        # Two tiers. A buying signal (price / dates / headcount) is a real
+                        # SQL: owner task + 12h escalation. A warm reply with no ask goes in
+                        # as an MQL so the SQL queue stays trustworthy.
+                        stage = "salesqualifiedlead" if is_sql else "marketingqualifiedlead"
+                        label = "SQL" if is_sql else "Potential SQL"
+                        log.info(f"  {label} from {redact_email(sender_email)} ({reason}) "
+                                 f"→ HubSpot + Manae")
                         if not dry_run:
                             # Write the lead into GCD HubSpot with everything we know
-                            # (name, company, phone if in signature) and lifecycle = SQL.
+                            # (name, company, phone if in signature), staged per tier.
                             cid      = hubspot_upsert_sql(sender_email, first, last,
-                                                          company=company, phone=phone)
+                                                          company=company, phone=phone,
+                                                          stage=stage, why=reason)
                             hs_link  = _hubspot_link(cid)
                             hs_added = bool(cid)   # only true when the write actually succeeded
-                            _bump(state, "daily_sql_count")
-                        mark_row(sender_email, reply_status="SQL",
-                                 last_result=f"SQL: {reason}"[:250])
-                        sql_count += 1
+                            if is_sql:
+                                _bump(state, "daily_sql_count")
+                                # Watch it for follow-through; escalates after STALL_HOURS.
+                                _track_open_lead(state, sender_email, cid,
+                                                 (first + " " + last).strip() or company,
+                                                 company, reason)
+                            else:
+                                _bump(state, "daily_potential_count")
+                        mark_row(sender_email, reply_status=label,
+                                 last_result=f"{label}: {reason}"[:250])
+                        if is_sql:
+                            sql_count += 1
+                        else:
+                            potential_count += 1
                     else:
                         log.info(f"  Genuine reply from {redact_email(sender_email)} (not SQL) → Manae")
                         mark_row(sender_email, reply_status="Replied",
@@ -1811,12 +2070,26 @@ def check_replies(state, dry_run=False):
                                 + (f" — {hs_link}" if hs_link else ".") + "\n\n"
                             )
                         fwd_subject = (
-                            f"{full_name or company or 'New'} — interested in CPR/First Aid training"
+                            (f"ACTION: {full_name or company or 'New lead'} — "
+                             f"asked about training (reply today)")
+                            if is_sql else
+                            (f"FYI: {full_name or company or 'New'} — warm reply, no ask yet")
+                        )
+                        opener = (
+                            f"{who} asked us something a quote or a date would answer — "
+                            f"worth a reply today.\n\n"
+                            f"What they asked: {reason}\n\n"
+                            f"I've put a task on your HubSpot queue, due in {STALL_HOURS} "
+                            f"hours. If nothing is logged against them by then, Chris gets a "
+                            f"note — that's a nudge on the system, not on you.\n\n"
+                            if is_sql else
+                            f"{who} replied warmly but hasn't asked for anything specific "
+                            f"yet, so this is an FYI rather than a to-do. Filed as a "
+                            f"marketing-qualified lead.\n\n"
                         )
                         fwd_body = (
                             f"Hi Manae,\n\n"
-                            f"{who} is interested in exploring training with us and will need "
-                            f"more info — can you take it from here?\n\n"
+                            f"{opener}"
                             f"{contact_block}{hs_line}{quoted}"
                             f"Thanks!\n{SENDER_FIRST}"
                         )
@@ -1846,7 +2119,8 @@ def check_replies(state, dry_run=False):
         save_state(state)
 
         log.info(
-            f"  Reply check done: {genuine_count} genuine ({sql_count} SQL → HubSpot), "
+            f"  Reply check done: {genuine_count} genuine ({sql_count} SQL, "
+            f"{potential_count} potential → HubSpot), "
             f"{archived_count} archived (incl. {unsubscribe_count} unsubs)"
         )
 
@@ -2101,7 +2375,7 @@ def _email_date(date_header):
 
 # reply_status values ranked so reconcile never downgrades a row
 _STATUS_RANK = {"": 0, "Contacted": 1, "Bounced": 2, "Unsubscribed": 2,
-                "Replied": 3, "SQL": 4, "Customer": 5}
+                "Replied": 3, "Potential SQL": 4, "SQL": 5, "Customer": 6}
 
 def run_reconcile(dry_run=False):
     """
@@ -2222,7 +2496,7 @@ def _sum_recent(counts_by_date, days):
     return sum(v for k, v in counts_by_date.items() if k in window)
 
 def update_agent_performance(*, sent_today, replies_7d, sql, customers, replied,
-                             contacted, today, table=None):
+                             contacted, today, table=None, open_leads=None):
     """Write Vida's slice into command-center/data/agent-performance.json so the CEO
     morning-briefing 'Agent Performance' strip stays live without hand-editing. No-op
     (logs + returns) if COMMAND_CENTER_TOKEN is unset, so local/dry runs are unaffected.
@@ -2259,6 +2533,10 @@ def update_agent_performance(*, sent_today, replies_7d, sql, customers, replied,
         "note": f"Reply rate {reply_rate} · {contacted:,} reached lifetime",
         # Detailed Today / 7-day / Lifetime table for the combined EOD email.
         "table": table or [],
+        # Handed-over leads with nothing logged against them yet. Surfaced in the morning
+        # briefing and the combined EOD email so a stalled lead is visible without anyone
+        # remembering to look (Chris, 2026-08-13).
+        "open_leads": open_leads or [],
     }
     # Read-modify-write with retry on 409: multiple SDR agents write this same file (Elena +
     # Joffe report in the same minute), so a stale-SHA conflict is expected — re-read and retry.
@@ -2324,7 +2602,8 @@ def run_report(dry_run=False):
 
     contacted = sum(counts.values())               # distinct people with any status set
     sql       = counts.get("SQL", 0)
-    replied   = counts.get("Replied", 0) + sql      # an SQL is an interested reply
+    potential = counts.get("Potential SQL", 0)      # warm reply, no ask yet (MQL)
+    replied   = counts.get("Replied", 0) + sql + potential   # all are interested replies
     bounced   = counts.get("Bounced", 0)
     unsub     = counts.get("Unsubscribed", 0)
     customers = counts.get("Customer", 0)
@@ -2351,6 +2630,7 @@ def run_report(dry_run=False):
         return Counter((v.get("reply_date") or "")[:10] for v in snap.values()
                        if v.get("reply_status") == status and v.get("reply_date"))
     sql_days = _by_reply_day("SQL")
+    pot_days = _by_reply_day("Potential SQL")
 
     dsc = state.get("daily_sent_count", {})
     drc = state.get("daily_reply_count", {})
@@ -2362,6 +2642,20 @@ def run_report(dry_run=False):
     sent_total = sum(dsc.values())
     sql_today = max(sql_days.get(today, 0), sqc.get(today, 0))
     sql_7d    = max(_sum_recent(sql_days, 7), _sum_recent(sqc, 7))
+    pqc       = state.get("daily_potential_count", {})
+    pot_today = max(pot_days.get(today, 0), pqc.get(today, 0))
+    pot_7d    = max(_sum_recent(pot_days, 7), _sum_recent(pqc, 7))
+    # Leads handed over and still showing no logged follow-up — the number Chris actually
+    # wants to see every morning.
+    open_leads = [l for l in state.get("open_leads", []) if not l.get("closed")]
+    def _age_h(l):
+        try:
+            return (pacific_now() - datetime.fromisoformat(l["handed_at"])).total_seconds() / 3600.0
+        except Exception:
+            return 0.0
+    open_leads = sorted(open_leads, key=_age_h, reverse=True)
+    open_lines = [f"{l.get('name') or l.get('company') or 'Lead'} — {l['email']} "
+                  f"({_age_h(l):.0f}h, {l.get('why','')[:48]})" for l in open_leads]
 
     def pct(n, d):
         return f"{(100.0 * n / d):.1f}%" if d else "—"
@@ -2381,9 +2675,12 @@ def run_report(dry_run=False):
         + r("New people reached",        nc.get(today, 0),  _sum_recent(nc, 7),  contacted)
         + r("Replies",                   drc.get(today, 0), _sum_recent(drc, 7), replied)
         + r("Sales-Qualified Leads",     sql_today, sql_7d, sql)
+        + r("Potential SQLs (warm)",      pot_today, pot_7d, potential)
         + r("Existing cust -> Manae",    cc.get(today, 0),  _sum_recent(cc, 7),  customers)
         + r("Hard bounces",              bc.get(today, 0),  _sum_recent(bc, 7),  bounced)
         + r("Unsubscribes",              uc.get(today, 0),  _sum_recent(uc, 7),  unsub)
+        + (f"\n  AWAITING FOLLOW-UP ({len(open_lines)}) — handed over, nothing logged yet:\n"
+           + "\n".join(f"    - {x}" for x in open_lines) + "\n" if open_lines else "")
         + f"\n  Currently awaiting reply:  {awaiting:,}\n"
         + f"  Lifetime reply rate: {pct(replied, contacted)}   "
           f"SQL rate: {pct(sql, contacted)}\n\n"
@@ -2420,15 +2717,20 @@ def run_report(dry_run=False):
         + hrow("New people reached", nc.get(today, 0), _sum_recent(nc, 7), contacted)
         + hrow("Replies", drc.get(today, 0), _sum_recent(drc, 7), replied)
         + hrow("Sales-Qualified Leads", sql_today, sql_7d, sql, hi=True)
+        + hrow("Potential SQLs (warm)", pot_today, pot_7d, potential)
         + hrow("Existing customers &rarr; Manae", cc.get(today, 0), _sum_recent(cc, 7), customers)
         + hrow("Hard bounces", bc.get(today, 0), _sum_recent(bc, 7), bounced)
         + hrow("Unsubscribes", uc.get(today, 0), _sum_recent(uc, 7), unsub)
         + "</tbody></table>"
-        f"<p style='margin:14px 0 4px'><b>Currently awaiting reply:</b> {awaiting:,}<br>"
-        f"<b>Lifetime reply rate:</b> {pct(replied, contacted)} &nbsp;&nbsp; "
-        f"<b>SQL rate:</b> {pct(sql, contacted)}</p>"
-        f"<p style='margin:14px 0 4px'><b>Sales-Qualified Leads ({len(sql_list)})</b> "
-        f"&mdash; confirm Manae has reached out:</p>"
+        + (f"<p style='margin:14px 0 4px'><b>Awaiting follow-up ({len(open_lines)})</b> "
+           f"&mdash; handed over, nothing logged against them yet:</p>"
+           "<ul style='margin:4px 0 0;padding-left:22px'>"
+           + "".join(f"<li>{x}</li>" for x in open_lines) + "</ul>" if open_lines else "")
+        + f"<p style='margin:14px 0 4px'><b>Currently awaiting reply:</b> {awaiting:,}<br>"
+        + f"<b>Lifetime reply rate:</b> {pct(replied, contacted)} &nbsp;&nbsp; "
+        + f"<b>SQL rate:</b> {pct(sql, contacted)}</p>"
+        + f"<p style='margin:14px 0 4px'><b>Sales-Qualified Leads ({len(sql_list)})</b> "
+        + f"&mdash; confirm Manae has reached out:</p>"
         + ("<ul style='margin:4px 0 0;padding-left:22px'>"
            + "".join(f"<li>{e}</li>" for e in sql_list) + "</ul>"
            if sql_list else "<p style='color:#888'>(none yet)</p>")
@@ -2452,6 +2754,7 @@ def run_report(dry_run=False):
         _pt("New people reached", nc.get(today, 0),  _sum_recent(nc, 7),  contacted),
         _pt("Replies",        drc.get(today, 0), _sum_recent(drc, 7), replied),
         _pt("SQLs",           sql_today, sql_7d, sql),
+        _pt("Potential SQLs", pot_today, pot_7d, potential),
         _pt("Cust → Manae",   cc.get(today, 0),  _sum_recent(cc, 7),  customers),
         _pt("Hard bounces",   bc.get(today, 0),  _sum_recent(bc, 7),  bounced),
         _pt("Unsubscribes",   uc.get(today, 0),  _sum_recent(uc, 7),  unsub),
@@ -2460,6 +2763,10 @@ def run_report(dry_run=False):
         sent_today=dsc.get(today, 0), replies_7d=_sum_recent(drc, 7), sql=sql,
         customers=customers, replied=replied, contacted=contacted, today=today,
         table=perf_table,
+        open_leads=[{"name": l.get("name") or l.get("company") or "Lead",
+                     "email": l["email"], "why": l.get("why", ""),
+                     "hours": round(_age_h(l)), "link": _hubspot_link(l.get("cid")),
+                     "alerted": bool(l.get("alerted"))} for l in open_leads],
     )
 
     if dry_run:
@@ -2533,13 +2840,37 @@ def run_combined_report(dry_run=False):
                 f"<b style='font-size:15px'>{k.get('value','—')}</b> "
                 f"<span style='color:#888;font-size:12px'>{k.get('label','')}</span></span>"
                 for k in a.get("kpis", []))
+        # Leads handed to sales with nothing logged against them yet — the part of this
+        # email Chris is meant to act on, so it sits directly under the numbers.
+        open_leads = a.get("open_leads") or []
+        if open_leads:
+            def _lead_li(l):
+                nm = l.get("name") or "Lead"
+                link = l.get("link") or ""
+                title = (f"<a href='{link}' style='color:#b1442e;text-decoration:none'>{nm}</a>"
+                         if link else nm)
+                flag = ", escalated" if l.get("alerted") else ""
+                return (f"<li style='margin:2px 0'>{title}"
+                        f" <span style='color:#666'>&mdash; {l.get('email','')}</span>"
+                        f" <span style='color:#999'>({int(l.get('hours',0))}h{flag})</span>"
+                        f"<div style='color:#888;font-size:12px;margin-left:2px'>"
+                        f"{l.get('why','')}</div></li>")
+            items = "".join(_lead_li(l) for l in open_leads[:12])
+            waiting = (
+                f"<div style='margin-top:10px;padding:8px 10px;border-left:3px solid #b1442e;"
+                f"background:#fdf6f4'>"
+                f"<div style='font-size:13px;font-weight:600;color:#b1442e'>"
+                f"Awaiting follow-up ({len(open_leads)})</div>"
+                f"<ul style='margin:4px 0 0;padding-left:18px;font-size:13px'>{items}</ul></div>")
+        else:
+            waiting = ""
         return (
             f"<div style='border:1px solid #e6e6e6;border-radius:10px;padding:14px 16px;margin:0 0 12px'>"
             f"<div style='font-size:15px;font-weight:700;color:#111'>"
             f"<span style='display:inline-block;width:8px;height:8px;border-radius:50%;background:{dot};margin-right:8px'></span>"
             f"{a.get('name','?')}</div>"
             f"<div style='color:#666;font-size:13px;margin:2px 0 4px'>{a.get('headline','')}</div>"
-            f"{detail}"
+            f"{detail}{waiting}"
             f"<div style='color:#999;font-size:12px;margin-top:8px'>{a.get('note','')}</div>"
             f"</div>")
 
@@ -2580,7 +2911,8 @@ def run_combined_report(dry_run=False):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--mode", choices=["daily","roster","reply_check","reconcile","report","combined_report"], required=True)
+    parser.add_argument("--mode", choices=["daily","roster","reply_check","stall_check",
+                                           "reconcile","report","combined_report"], required=True)
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--force-weekday", action="store_true")
     parser.add_argument("--force", action="store_true")  # alias
@@ -2591,8 +2923,13 @@ def main():
     # Acquire exclusive lock — exits immediately if another instance is running
     _lock_fh = _acquire_lock()
 
-    if not args.force_weekday and not args.force and not is_weekday():
-        log.info(f"Today is {pacific_today().strftime('%A')} — agent only runs M–F. Exiting.")
+    # Outbound sending stays weekdays-only, but reading replies and watching handed-over
+    # leads now runs every day: a Friday-afternoon reply used to sit until Monday 9am
+    # before Manae even heard about it (Chris, 2026-08-13).
+    WEEKDAY_ONLY_MODES = {"daily", "roster"}
+    if (args.mode in WEEKDAY_ONLY_MODES and not args.force_weekday and not args.force
+            and not is_weekday()):
+        log.info(f"Today is {pacific_today().strftime('%A')} — {args.mode} only runs M–F. Exiting.")
         sys.exit(0)
 
     if args.dry_run:
@@ -2611,6 +2948,9 @@ def main():
         send_manae_roster(state, dry_run=args.dry_run)
     elif args.mode == "reply_check":
         check_replies(state, dry_run=args.dry_run)
+        # Safety net on handed-over leads — cheap (one HubSpot read per open lead) and it
+        # runs on the same cadence as the reply check, including weekends.
+        check_stalled_leads(load_state(), dry_run=args.dry_run)
         # Self-healing: GitHub occasionally drops a scheduled run entirely. reply_check
         # fires several times a day, so use it to catch up the daily send + dashboard if
         # their own cron didn't fire today. Both self-guard (daily cap + last_*_run date),
@@ -2624,6 +2964,8 @@ def main():
             # at 6pm PT. reply_check ends at 5pm PT so it could never back up a 6pm report
             # anyway, and the old catch-up + the report cron were double-sending. One trigger
             # = one email. (Backstop: the morning briefing's Vida tile shows a missed day.)
+    elif args.mode == "stall_check":
+        check_stalled_leads(state, dry_run=args.dry_run)
     elif args.mode == "reconcile":
         run_reconcile(dry_run=args.dry_run)
     elif args.mode == "report":

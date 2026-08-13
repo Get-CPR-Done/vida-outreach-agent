@@ -8,7 +8,13 @@ on:
     # Running at 16:00 UTC covers PDT; adjust to 17:00 in winter manually.
 
     - cron: "5 16 * * 1"      # roster          — Monday 9:05 AM PDT
-    - cron: "0 16,18,20,22,0 * * 1-5"  # reply_check — every 2 hrs 9AM–5PM PDT
+    # reply_check — every 2 hrs, 9AM–7PM PDT, SEVEN DAYS. It was 1-5 (weekdays) and the
+    # 5PM slot is 00:00 UTC, which lands on the PREVIOUS Pacific day — so Friday's last
+    # check was 3PM and the next was Monday 9AM: a Friday-afternoon reply waited ~66h
+    # before sales heard about it (Chris, 2026-08-13). Sending is still weekday-only —
+    # the agent enforces that per mode, so weekend runs read replies without emailing out.
+    - cron: "0 16,18,20,22 * * *"      # 9AM, 11AM, 1PM, 3PM PDT — every day
+    - cron: "0 0,2 * * *"              # 5PM, 7PM PDT (prev. Pacific day) — every day
     # The DAILY send is NO LONGER a GitHub cron. GitHub schedules drift and sometimes drop
     # entirely (2026-08-04: nothing fired ~15h; 2026-08-05: the 9am daily was dropped again),
     # and a GitHub daily cron firing at 16:00 collided with the 16:00 reply_check in the shared
@@ -92,6 +98,8 @@ jobs:
             # the wall clock, which breaks whenever GitHub fires a schedule late.
             case "${{ github.event.schedule }}" in
               "0 16 * * 1-5")  echo "mode=daily"       >> $GITHUB_OUTPUT ;;
+              "0 16,18,20,22 * * *") echo "mode=reply_check" >> $GITHUB_OUTPUT ;;
+              "0 0,2 * * *")   echo "mode=reply_check" >> $GITHUB_OUTPUT ;;
               "5 16 * * 1")    echo "mode=roster"      >> $GITHUB_OUTPUT ;;
               "0 2 * * *")     echo "mode=report"      >> $GITHUB_OUTPUT ;;
               *)               echo "mode=reply_check" >> $GITHUB_OUTPUT ;;

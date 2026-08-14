@@ -1409,6 +1409,11 @@ LEAD_OWNER_EMAIL = os.environ.get("LEAD_OWNER_EMAIL", "manae@getcprdone.com")
 # sitting at the top of the queue within the half hour, long before the 12h escalation
 # that exists as a backstop, not as the target (Chris, 2026-08-13).
 TASK_DUE_MINUTES = int(os.environ.get("TASK_DUE_MINUTES", "30") or 30)
+# Leads are announced in Slack so the team sees the queue without waiting for an email
+# digest: GCD leads to #GCD, Joffe leads to #GrowthTeam (Chris, 2026-08-13). Unset token
+# = silently skipped, so a missing secret never costs us a run.
+SLACK_BOT_TOKEN    = os.environ.get("SLACK_BOT_TOKEN", "")
+SLACK_LEADS_CHANNEL = os.environ.get("SLACK_LEADS_CHANNEL") or "#GCD"
 STALL_HOURS = int(os.environ.get("STALL_HOURS", "12") or 12)
 
 TRAFFIC_SOURCE_PROP_LABEL   = os.environ.get("HS_TRAFFIC_SOURCE_LABEL", "Latest Traffic Source")
@@ -1476,6 +1481,28 @@ def hubspot_create_followup_task(cid, owner_id, name, why):
     except Exception as e:
         log.warning(f"    HubSpot task create failed: {e}")
     return ""
+
+
+def slack_post(text, dry_run=False):
+    """Post a line to the leads channel. Best-effort and never fatal — a Slack outage or a
+    missing token must not stop a lead reaching sales by email."""
+    if not SLACK_BOT_TOKEN or not SLACK_LEADS_CHANNEL:
+        return False
+    if dry_run:
+        log.info(f"  [DRY RUN] Slack -> {SLACK_LEADS_CHANNEL}: {text[:120]}")
+        return False
+    try:
+        st, data = http_post_raw(
+            "https://slack.com/api/chat.postMessage",
+            {"Authorization": f"Bearer {SLACK_BOT_TOKEN}", "Content-Type": "application/json"},
+            {"channel": SLACK_LEADS_CHANNEL, "text": text, "unfurl_links": False})
+        if st == 200 and data.get("ok"):
+            return True
+        # Slack answers 200 with ok:false and a reason (not_in_channel, channel_not_found…)
+        log.warning(f"  Slack post failed: {data.get('error', st)}")
+    except Exception as e:
+        log.warning(f"  Slack post failed: {e}")
+    return False
 
 
 def _track_open_lead(state, email, cid, name, company, why):
@@ -1599,6 +1626,14 @@ def check_stalled_leads(state, dry_run=False):
                  f"\n{subject}\n{body}")
     else:
         send_email(CHRIS_EMAIL, subject, body, cc=LEAD_OWNER_EMAIL)
+        for lead, hours in stalled:
+            slack_post(
+                f":rotating_light: *No follow-up in {hours:.0f}h* — "
+                f"{lead.get('name') or lead['email']}"
+                + (f" · {lead.get('company')}" if lead.get("company") else "")
+                + f"\n_{lead.get('why','')}_\n{lead['email']}"
+                + (f" · <{_hubspot_link(lead.get('cid'))}|HubSpot>" if lead.get("cid") else "")
+                + f"\nNothing logged against the contact since handoff — may be a logging gap.")
         log.info(f"  stall check: escalated {len(stalled)} lead(s) to Chris")
     return len(stalled)
 
@@ -2019,6 +2054,14 @@ def check_replies(state, dry_run=False):
                             hs_added = bool(cid)   # only true when the write actually succeeded
                             if is_sql:
                                 _bump(state, "daily_sql_count")
+                                who_s = (first + " " + last).strip() or company or sender_email
+                                slack_post(
+                                    f":inbox_tray: *New SQL — {who_s}*"
+                                    + (f" · {company}" if company else "")
+                                    + f"\n_{reason}_\n{sender_email}"
+                                    + (f" · <{hs_link}|HubSpot>" if hs_link else "")
+                                    + f"\nOwner: {LEAD_OWNER_EMAIL} · task due in "
+                                    f"{TASK_DUE_MINUTES} min · via {SENDING_NAME}")
                                 # Watch it for follow-through; escalates after STALL_HOURS.
                                 _track_open_lead(state, sender_email, cid,
                                                  (first + " " + last).strip() or company,

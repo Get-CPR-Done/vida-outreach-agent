@@ -1413,7 +1413,7 @@ TASK_DUE_MINUTES = int(os.environ.get("TASK_DUE_MINUTES", "30") or 30)
 # digest: GCD leads to #GCD, Joffe leads to #GrowthTeam (Chris, 2026-08-13). Unset token
 # = silently skipped, so a missing secret never costs us a run.
 SLACK_BOT_TOKEN    = os.environ.get("SLACK_BOT_TOKEN", "")
-SLACK_LEADS_CHANNEL = os.environ.get("SLACK_LEADS_CHANNEL") or "#GCD"
+SLACK_LEADS_CHANNEL = os.environ.get("SLACK_LEADS_CHANNEL") or "C0804PH0W0Z"   # #GCD (private)
 STALL_HOURS = int(os.environ.get("STALL_HOURS", "12") or 12)
 
 TRAFFIC_SOURCE_PROP_LABEL   = os.environ.get("HS_TRAFFIC_SOURCE_LABEL", "Latest Traffic Source")

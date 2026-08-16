@@ -2345,7 +2345,13 @@ def run_daily(dry_run=False, limit=None):
             log.info(f"Sending {i+1}/{len(to_send)} (row {row}, touch {touch}): {subject}")
 
             if dry_run:
-                log.info(f"  [DRY RUN] Would send touch {touch}. clean_first={clean_first!r}")
+                # Log the body too: a dry run is the only way to read what the generator
+                # actually wrote (e.g. confirming a hospital gets BLS wording and a
+                # preschool gets pediatric CPR), and the subject alone doesn't show it.
+                log.info(f"  [DRY RUN] Would send touch {touch}. clean_first={clean_first!r}"
+                         f"\n  --- to {contact.get('email','')} "
+                         f"[{contact.get('company','')}] tags={contact.get('tags')}\n  "
+                         + "\n  ".join((body or "").strip().splitlines()[:8]))
                 continue
 
             plain_body, html_body = build_outreach_bodies(body)

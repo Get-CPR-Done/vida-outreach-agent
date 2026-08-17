@@ -1450,7 +1450,7 @@ def _resolve_owner_id(email=None):
     return _HS_OWNER_ID
 
 
-def hubspot_create_followup_task(cid, owner_id, name, why):
+def hubspot_create_followup_task(cid, owner_id, name, why, priority="HIGH"):
     """Put the handoff in the owner's HubSpot task queue, due in TASK_DUE_MINUTES.
 
     Best-effort: a failure here never blocks the lead write or the handoff email.
@@ -1462,7 +1462,7 @@ def hubspot_create_followup_task(cid, owner_id, name, why):
         "hs_task_subject": f"Follow up: {name or 'new lead'} (CPR/First Aid enquiry)",
         "hs_task_body": (why or "Replied to outreach.") + " — handed over by " + SENDING_NAME,
         "hs_task_status": "NOT_STARTED",
-        "hs_task_priority": "HIGH",
+        "hs_task_priority": priority,
         "hs_task_type": "EMAIL",
         "hs_timestamp": due_ms,
         "hubspot_owner_id": owner_id,
@@ -1716,7 +1716,7 @@ def _extract_phone(text):
     return m.group(0).strip() if m else ""
 
 def hubspot_upsert_sql(email, first="", last="", company="", phone="",
-                       stage="salesqualifiedlead", why=""):
+                       stage="salesqualifiedlead", why="", task_priority="HIGH"):
     """Create or update a HubSpot contact as a lead. Returns the contact id (for a record
     link) or '' on failure. Needs contacts write scope.
 
@@ -1758,9 +1758,9 @@ def hubspot_upsert_sql(email, first="", last="", company="", phone="",
                 r.read()
             log.info(f"    HubSpot: updated {redact_email(email)} → {stage}"
                      + (f" (owner {owner_id})" if owner_id else " (no owner)"))
-            if stage == "salesqualifiedlead":
-                hubspot_create_followup_task(cid, owner_id,
-                                             (first + " " + last).strip() or company, why)
+            hubspot_create_followup_task(cid, owner_id,
+                                         (first + " " + last).strip() or company, why,
+                                         priority=task_priority)
             return cid
         st, cdata = http_post_raw("https://api.hubapi.com/crm/v3/objects/contacts", headers,
                                   {"properties": props})
@@ -1768,9 +1768,9 @@ def hubspot_upsert_sql(email, first="", last="", company="", phone="",
             cid = str(cdata.get("id", ""))
             log.info(f"    HubSpot: created {redact_email(email)} → {stage}"
                      + (f" (owner {owner_id})" if owner_id else " (no owner)"))
-            if stage == "salesqualifiedlead":
-                hubspot_create_followup_task(cid, owner_id,
-                                             (first + " " + last).strip() or company, why)
+            hubspot_create_followup_task(cid, owner_id,
+                                         (first + " " + last).strip() or company, why,
+                                         priority=task_priority)
             return cid
         log.info(f"    HubSpot: create FAILED ({st}) {redact_email(email)}")
         return ""
@@ -2040,7 +2040,13 @@ def check_replies(state, dry_run=False):
                         # Two tiers. A buying signal (price / dates / headcount) is a real
                         # SQL: owner task + 12h escalation. A warm reply with no ask goes in
                         # as an MQL so the SQL queue stays trustworthy.
-                        stage = "salesqualifiedlead" if is_sql else "marketingqualifiedlead"
+                        # Everything enters as an SQL and sales scores it, including the
+                        # softer replies (Chris, 2026-08-17). Marketing can't measure lead
+                        # QUALITY if leads are filtered out before a human ever judges them,
+                        # so the agent no longer pre-demotes anything to MQL. Our own read of
+                        # the reply survives in the sheet status, the handoff wording and the
+                        # task priority — sales just gets the final say.
+                        stage = "salesqualifiedlead"
                         label = "SQL" if is_sql else "Potential SQL"
                         log.info(f"  {label} from {redact_email(sender_email)} ({reason}) "
                                  f"→ HubSpot + Manae")
@@ -2049,7 +2055,9 @@ def check_replies(state, dry_run=False):
                             # (name, company, phone if in signature), staged per tier.
                             cid      = hubspot_upsert_sql(sender_email, first, last,
                                                           company=company, phone=phone,
-                                                          stage=stage, why=reason)
+                                                          stage=stage, why=reason,
+                                                          task_priority=("HIGH" if is_sql
+                                                                         else "MEDIUM"))
                             hs_link  = _hubspot_link(cid)
                             hs_added = bool(cid)   # only true when the write actually succeeded
                             if is_sql:

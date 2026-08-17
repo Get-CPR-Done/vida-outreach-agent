@@ -41,6 +41,7 @@ from html import escape as html_escape, unescape as html_unescape
 from pathlib import Path
 
 import sheets_db
+from email_format import clean_quote, link_html, paras_html, quote_block_html, wrapper_html
 
 # ─── Config ───────────────────────────────────────────────────────────────────
 
@@ -924,19 +925,22 @@ def build_outreach_bodies(body):
     If there's no scheduler link configured, or the phrase isn't present, html is None
     and plain is returned unchanged (so nothing breaks for the no-link/fallback cases).
     """
-    if not MANAE_CALENDAR_LINK or not _MEETING_LINK_RE.search(body):
-        return body, None
+    # ALWAYS return HTML now. It used to be None whenever the scheduler phrase was absent,
+    # which meant those emails went out plain-text only: hard-wrapped lines and any URL
+    # sitting there naked, both of which read as machine output (Chris, 2026-08-17).
+    has_link = bool(MANAE_CALENDAR_LINK and _MEETING_LINK_RE.search(body))
 
-    # Plaintext: keep the words, but make the URL reachable (only the first occurrence).
-    plain = _MEETING_LINK_RE.sub(
-        lambda m: f"{m.group(0)} ({MANAE_CALENDAR_LINK})", body, count=1)
+    # Plaintext fallback: keep the words, make the URL reachable once, on its own line so it
+    # can't break mid-sentence when a client wraps it.
+    plain = (_MEETING_LINK_RE.sub(lambda m: f"{m.group(0)}", body, count=1) if has_link else body)
+    if has_link:
+        plain = plain.rstrip() + f"\n\n{MANAE_CALENDAR_LINK}"
 
-    # HTML: escape everything, then hyperlink the first "meeting link", newlines -> <br>.
-    esc = html_escape(body)
-    href = html_escape(MANAE_CALENDAR_LINK, quote=True)
-    esc = _MEETING_LINK_RE.sub(
-        lambda m: f'<a href="{href}">{m.group(0)}</a>', esc, count=1)
-    html = esc.replace("\n", "<br>\n")
+    # HTML: real paragraphs, and the words "meeting link" carry the href.
+    marked = (_MEETING_LINK_RE.sub(lambda m: f"[{m.group(0)}]({MANAE_CALENDAR_LINK})", body, count=1)
+              if has_link else body)
+    html = wrapper_html(paras_html(marked),
+                        signature=f"{SENDING_NAME} | {COMPANY_NAME}")
     return plain, html
 
 def generate_emails_batch(contacts):
@@ -2104,7 +2108,9 @@ def check_replies(state, dry_run=False):
                     # back-and-forth the reply carries (Chris: sales needs the whole exchange).
                     _msg = (body_text or "").strip()
                     _msg = _msg[:4000] + ("\n…(truncated)" if len(_msg) > 4000 else "")
-                    quoted = f"Here's the full exchange:\n\n---\n{_msg}\n---\n\n"
+                    # '>' markers and 70-column hard wraps stripped: this lands in front of a
+                    # human, so it should read as prose, not as raw mail plumbing.
+                    quoted = f"Here's the full exchange:\n\n{clean_quote(_msg)}\n\n"
                     # Manae replies straight out of this handoff, so the prospect's own
                     # address (plus phone/company when the signature gave us one) goes
                     # right under the intro — she asked for it 2026-08-11.
@@ -2156,8 +2162,25 @@ def check_replies(state, dry_run=False):
                             f"but wanted to flag it for you.\n\n{contact_block}{quoted}"
                             f"Thanks!\n{SENDER_FIRST}"
                         )
+                    # HTML twin of the note: the prospect's words in an indented block, the
+                    # record as a link on words, no bare URLs anywhere.
+                    _detail = [f"Email: {link_html('mailto:' + sender_email, sender_email)}"] if sender_email else []
+                    if phone:
+                        _detail.append(f"Phone: {html_escape(phone)}")
+                    if company:
+                        _detail.append(f"Company: {html_escape(company)}")
+                    if hs_link:
+                        _detail.append(link_html(hs_link, "Open the HubSpot record"))
+                    fwd_html = wrapper_html(
+                        paras_html(f"Hi Manae,\n\n{opener.strip()}")
+                        + (f'<p style="margin:0 0 12px">{" &nbsp;·&nbsp; ".join(_detail)}</p>'
+                           if _detail else "")
+                        + '<p style="margin:0 0 6px;color:#666;font-size:13px">The exchange:</p>'
+                        + quote_block_html(_msg)
+                        + paras_html("Thanks!"),
+                        signature=SENDER_FIRST)
                     if not dry_run:
-                        send_email(MANAE_EMAIL, fwd_subject, fwd_body)
+                        send_email(MANAE_EMAIL, fwd_subject, fwd_body, html=fwd_html)
                         mail.store(mid, "+FLAGS", "\\Seen")
                     genuine_count += 1
 

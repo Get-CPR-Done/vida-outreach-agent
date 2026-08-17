@@ -68,7 +68,7 @@ jobs:
     # The daily send legitimately runs ~3.75h (rate-limited). Cap at 5.5h so a genuinely hung
     # run self-clears sooner than GitHub's 6h default and can't hold the shared concurrency lock
     # indefinitely. (Reply-check hangs are separately prevented by the IMAP socket timeout.)
-    timeout-minutes: 330
+    timeout-minutes: 350
     concurrency:
       group: outreach-agent          # prevents two jobs running simultaneously
       cancel-in-progress: false      # don't cancel — let the running one finish

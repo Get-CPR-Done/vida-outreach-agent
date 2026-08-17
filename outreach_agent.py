@@ -68,9 +68,14 @@ PROOF_POINT   = ("we've trained thousands of people across the country — teach
 # hard cap is ~2,000/day; to scale past this, add mailboxes/subdomains, don't just
 # raise the number. (Sustained 750/day requires the repo to be PUBLIC for free
 # unlimited Actions minutes — see README.)
-BATCH_SIZE    = 750
-MIN_DELAY_SEC = 10
-MAX_DELAY_SEC = 20
+BATCH_SIZE    = 1250
+# Spacing between sends. Tightened from 10-20s when the cap went to 1,250: real runs
+# averaged 18.7s per send end-to-end (sleep + generation + the HubSpot customer check), so
+# 1,250 x 18.7s = 6.5h would have run past the job timeout and truncated the batch without
+# saying so. At 6-12s the same 1,250 lands in ~4.5h. Still ~4-5 sends/minute, which is
+# unremarkable for Workspace SMTP.
+MIN_DELAY_SEC = 6
+MAX_DELAY_SEC = 12
 
 # Multi-touch email cadence (per SellingSara: outbound is 12-15 touches / building
 # familiarity, not one-and-done). Email is Vida's only channel, so ~4 email touches

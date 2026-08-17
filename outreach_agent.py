@@ -1252,7 +1252,7 @@ def send_eod_report(sent_count, bounce_count, bounce_list, replacement_queue, sk
             skipped_lines += f"\n  ... and {len(skipped_role) - 10} more"
 
     body = (
-        f"Hi Manae and Chris,\n\n"
+        f"Hi Chris,\n\n"
         f"Here's today's outreach summary for {today}:\n\n"
         f"  Emails sent:      {sent_count}\n"
         f"  Hard bounces:     {bounce_count} ({bounce_rate})\n"
@@ -1267,9 +1267,12 @@ def send_eod_report(sent_count, bounce_count, bounce_list, replacement_queue, sk
     )
 
     if not dry_run:
-        result = send_email(MANAE_EMAIL, subject, body, cc=CHRIS_EMAIL)
+        # Chris only. Manae was getting this daily from BOTH agents on top of every lead
+        # handoff — she asked for one email per lead, not an ops report (Chris, 2026-08-17).
+        # Everything in here also reaches Chris in the combined all-SDR EOD email.
+        result = send_email(CHRIS_EMAIL, subject, body)
         if result.get("success"):
-            log.info("  → EOD report sent to Manae + Chris")
+            log.info("  → EOD report sent to Chris")
         else:
             log.error(f"  → EOD report failed: {result.get('error')}")
     else:
@@ -2184,8 +2187,21 @@ def check_replies(state, dry_run=False):
                         + quote_block_html(_msg)
                         + paras_html("Thanks!"),
                         signature=SENDER_FIRST)
-                    if not dry_run:
+                    # One email per lead per day. A prospect who replies twice (or an
+                    # auto-ack followed by a real answer) used to produce a handoff each
+                    # time, which is a large part of why the inbox felt like a firehose.
+                    _fwd_log = state.setdefault("forwarded_recent", {})
+                    _already = _fwd_log.get((sender_email or "").lower()) == today_str()
+                    if _already:
+                        log.info(f"  Already handed {redact_email(sender_email)} to Manae "
+                                 f"today — updating HubSpot only, no second email")
+                    if not dry_run and not _already:
                         send_email(MANAE_EMAIL, fwd_subject, fwd_body, html=fwd_html)
+                        _fwd_log[(sender_email or "").lower()] = today_str()
+                        # keep the log from growing without bound
+                        if len(_fwd_log) > 2000:
+                            for k in list(_fwd_log)[:1000]:
+                                _fwd_log.pop(k, None)
                         mail.store(mid, "+FLAGS", "\\Seen")
                     genuine_count += 1
 

@@ -160,9 +160,26 @@ def parse_row(row_number, row):
     }
 
 
+# Our own domains. Six of these were sitting in the purchased list (chris@getcprdone.com,
+# colleens@joffeemergencyservices.com and friends), which means the agents could cold-pitch
+# their own colleagues — and any reply would then loop back in as a "lead"
+# (Chris, 2026-08-17). Suppressed in the sheet too; this is the belt to that pair of braces.
+INTERNAL_EMAIL_DOMAINS = {
+    "getcprdone.com", "getcprdone.net", "getcbr.net",
+    "joffeemergencyservices.com", "joffeschoolsafety.com",
+}
+
+
+def is_internal(email):
+    e = (email or "").strip().lower()
+    return "@" in e and e.rsplit("@", 1)[-1] in INTERNAL_EMAIL_DOMAINS
+
+
 def is_eligible(c):
     """A row we may email: not yet contacted, not suppressed, still subscribed."""
     if not c:
+        return False
+    if is_internal(c.get("email")):
         return False
     if c["contacted"]:
         return False

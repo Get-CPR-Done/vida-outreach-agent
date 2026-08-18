@@ -314,6 +314,25 @@ INDUSTRY_MAP = [
      "legal firm — employee safety readiness"),
 ]
 
+# ─── Never treat our own people as prospects ─────────────────────────────────
+# Manae replied to the agent's mailbox and the agent booked HER as a sales-qualified lead:
+# contact created, task assigned, note logged, Slack posted — repeatedly, because she kept
+# replying (Chris, 2026-08-17). Anyone at one of our own domains is internal: their mail is
+# read and archived, but it never becomes a lead, a task, a note, or a Slack post.
+INTERNAL_DOMAINS = {
+    "getcprdone.com", "getcprdone.net", "getcbr.net",
+    "joffeemergencyservices.com", "joffeschoolsafety.com",
+}
+
+
+def is_internal_address(addr):
+    """True for anyone on our own domains — teammates, aliases, the agents themselves."""
+    addr = (addr or "").strip().lower()
+    if "@" not in addr:
+        return False
+    return addr.rsplit("@", 1)[-1] in INTERNAL_DOMAINS
+
+
 # Role/generic address prefixes to skip — not a real person
 ROLE_ADDRESS_PREFIXES = {
     "center", "info", "admin", "contact", "office", "main", "general",
@@ -2007,6 +2026,17 @@ def check_replies(state, dry_run=False):
                     or "auto_reply" in precedence
                     or bool(msg.get("X-Autoreply")) or bool(msg.get("X-Autorespond"))
                 )
+                # Our own people are not leads. Manae replying to this mailbox was being
+                # booked as an SQL — contact, task, note and a Slack post, every time she
+                # wrote back. Read it, archive it, move on.
+                if is_internal_address(sender_email):
+                    log.info(f"  Internal sender {redact_email(sender_email)} — archiving, "
+                             f"never a lead")
+                    if not dry_run:
+                        archive_message(mail, mid)
+                    archived_count += 1
+                    continue
+
                 kind = classify_reply(sender, subject, body_text)
 
                 if kind == "bounce":

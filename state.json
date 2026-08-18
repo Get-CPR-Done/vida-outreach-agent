@@ -161,7 +161,8 @@
     "2026-08-13": 6,
     "2026-08-14": 2,
     "2026-08-15": 0,
-    "2026-08-16": 0
+    "2026-08-16": 0,
+    "2026-08-17": 5
   },
   "do_not_contact": [],
   "bounce_replacement_queue": [],
@@ -192,7 +193,8 @@
     "2026-08-13": 9,
     "2026-08-14": 10,
     "2026-08-15": 8,
-    "2026-08-16": 7
+    "2026-08-16": 7,
+    "2026-08-17": 6
   },
   "daily_sql_count": {
     "2026-07-30": 4,
@@ -204,7 +206,8 @@
     "2026-08-10": 1,
     "2026-08-11": 3,
     "2026-08-12": 4,
-    "2026-08-13": 3
+    "2026-08-13": 3,
+    "2026-08-17": 2
   },
   "daily_unsub_count": {
     "2026-07-30": 3,
@@ -217,7 +220,8 @@
     "2026-08-12": 5,
     "2026-08-13": 2,
     "2026-08-14": 2,
-    "2026-08-15": 1
+    "2026-08-15": 1,
+    "2026-08-17": 3
   },
   "daily_customer_count": {
     "2026-07-31": 2,
@@ -225,6 +229,35 @@
   },
   "last_report_run": "2026-08-16",
   "daily_potential_count": {
-    "2026-08-13": 1
-  }
+    "2026-08-13": 1,
+    "2026-08-17": 2
+  },
+  "forwarded_recent": {
+    "lsilva@eusd.org": "2026-08-17",
+    "wramirez@ventureca.org": "2026-08-17",
+    "manae@getcprdone.com": "2026-08-17",
+    "michele@creativemindslc.com": "2026-08-17"
+  },
+  "open_leads": [
+    {
+      "email": "manae@getcprdone.com",
+      "cid": "242618756393",
+      "name": "Manae Deguchi",
+      "company": "",
+      "why": "Asking for scheduling details: dates, times, location, participant count, course type.",
+      "handed_at": "2026-08-17T17:41:49-07:00",
+      "alerted": false,
+      "closed": false
+    },
+    {
+      "email": "michele@creativemindslc.com",
+      "cid": "33196946448",
+      "name": "Michele Ornum",
+      "company": "",
+      "why": "Requests hybrid class pricing for 10 people\u2014actionable today.",
+      "handed_at": "2026-08-17T17:41:58-07:00",
+      "alerted": false,
+      "closed": false
+    }
+  ]
 }

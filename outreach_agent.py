@@ -36,7 +36,7 @@ import sys
 import time
 import urllib.error
 import urllib.request
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from html import escape as html_escape, unescape as html_unescape
 from pathlib import Path
 
@@ -1462,7 +1462,48 @@ def _resolve_owner_id(email=None):
     return _HS_OWNER_ID
 
 
-def hubspot_create_followup_task(cid, owner_id, name, why, priority="HIGH"):
+def hubspot_log_reply_note(cid, reply_text, why="", when_iso=None):
+    """Put the prospect's actual reply on the HubSpot record as a note.
+
+    Without this the record carries a task saying "follow up" and nothing else: the reply
+    itself only existed in the agent's own mailbox, which sales can't see, and in the
+    handoff email. Manae hit exactly that on 2026-08-17 — a task for a lead with no
+    findable communication anywhere on the record.
+
+    Notes are deliberate here rather than logged emails: a note does NOT move
+    notes_last_contacted or hs_last_sales_activity_timestamp (verified), so logging one
+    can't make an untouched lead look answered in the five-minute timer or silence the
+    12-hour escalation.
+    """
+    if not cid or not HUBSPOT_TOKEN:
+        return ""
+    body = clean_quote(reply_text or "")
+    html = (f"<b>Reply received by {SENDING_NAME}</b> (logged automatically)"
+            + (f"<br><br><i>{html_escape(why)}</i>" if why else "")
+            + "<br><br>" + (paras_html(body) if body else "<i>(no readable message body)</i>")
+            + f"<br><i>The original email arrived in {os.environ.get('GMAIL_ADDRESS', 'the agent mailbox')}. "
+              f"Replying from HubSpot keeps the thread on this record.</i>")
+    payload = {"properties": {"hs_note_body": html[:65000],
+                              "hs_timestamp": when_iso or _now_iso()},
+               "associations": [{"to": {"id": cid}, "types": [
+                   {"associationCategory": "HUBSPOT_DEFINED", "associationTypeId": 202}]}]}
+    try:
+        st, data = http_post_raw("https://api.hubapi.com/crm/v3/objects/notes",
+                                 {"Authorization": f"Bearer {HUBSPOT_TOKEN}",
+                                  "Content-Type": "application/json"}, payload)
+        if st in (200, 201):
+            return str(data.get("id", ""))
+        log.warning(f"    HubSpot note failed ({st}): {str(data)[:140]}")
+    except Exception as e:
+        log.warning(f"    HubSpot note failed: {e}")
+    return ""
+
+
+def _now_iso():
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def hubspot_create_followup_task(cid, owner_id, name, why, priority="HIGH", reply_text=""):
     """Put the handoff in the owner's HubSpot task queue, due in TASK_DUE_MINUTES.
 
     Best-effort: a failure here never blocks the lead write or the handoff email.
@@ -1472,7 +1513,10 @@ def hubspot_create_followup_task(cid, owner_id, name, why, priority="HIGH"):
     due_ms = int((time.time() + TASK_DUE_MINUTES * 60) * 1000)
     props = {
         "hs_task_subject": f"Follow up: {name or 'new lead'} (CPR/First Aid enquiry)",
-        "hs_task_body": (why or "Replied to outreach.") + " — handed over by " + SENDING_NAME,
+        "hs_task_body": ((why or "Replied to outreach.") + " — handed over by " + SENDING_NAME
+                         + (f"\n\nWhat they wrote:\n{clean_quote(reply_text)[:1500]}"
+                            if reply_text else "")
+                         + "\n\nThe full reply is also logged as a note on this record."),
         "hs_task_status": "NOT_STARTED",
         "hs_task_priority": priority,
         "hs_task_type": "EMAIL",
@@ -1728,7 +1772,8 @@ def _extract_phone(text):
     return m.group(0).strip() if m else ""
 
 def hubspot_upsert_sql(email, first="", last="", company="", phone="",
-                       stage="salesqualifiedlead", why="", task_priority="HIGH"):
+                       stage="salesqualifiedlead", why="", task_priority="HIGH",
+                       reply_text=""):
     """Create or update a HubSpot contact as a lead. Returns the contact id (for a record
     link) or '' on failure. Needs contacts write scope.
 
@@ -1770,9 +1815,10 @@ def hubspot_upsert_sql(email, first="", last="", company="", phone="",
                 r.read()
             log.info(f"    HubSpot: updated {redact_email(email)} → {stage}"
                      + (f" (owner {owner_id})" if owner_id else " (no owner)"))
+            hubspot_log_reply_note(cid, reply_text, why)
             hubspot_create_followup_task(cid, owner_id,
                                          (first + " " + last).strip() or company, why,
-                                         priority=task_priority)
+                                         priority=task_priority, reply_text=reply_text)
             return cid
         st, cdata = http_post_raw("https://api.hubapi.com/crm/v3/objects/contacts", headers,
                                   {"properties": props})
@@ -1780,9 +1826,10 @@ def hubspot_upsert_sql(email, first="", last="", company="", phone="",
             cid = str(cdata.get("id", ""))
             log.info(f"    HubSpot: created {redact_email(email)} → {stage}"
                      + (f" (owner {owner_id})" if owner_id else " (no owner)"))
+            hubspot_log_reply_note(cid, reply_text, why)
             hubspot_create_followup_task(cid, owner_id,
                                          (first + " " + last).strip() or company, why,
-                                         priority=task_priority)
+                                         priority=task_priority, reply_text=reply_text)
             return cid
         log.info(f"    HubSpot: create FAILED ({st}) {redact_email(email)}")
         return ""
@@ -2068,6 +2115,7 @@ def check_replies(state, dry_run=False):
                             cid      = hubspot_upsert_sql(sender_email, first, last,
                                                           company=company, phone=phone,
                                                           stage=stage, why=reason,
+                                                          reply_text=body_text,
                                                           task_priority=("HIGH" if is_sql
                                                                          else "MEDIUM"))
                             hs_link  = _hubspot_link(cid)

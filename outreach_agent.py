@@ -1141,7 +1141,8 @@ def generate_email(contact):
 
 # ─── Gmail SMTP ───────────────────────────────────────────────────────────────
 
-def send_gmail_smtp(to, subject, body, cc=None, html=None):
+def send_gmail_smtp(to, subject, body, cc=None, html=None,
+                    reply_to=None, in_reply_to=None, references=None):
     import smtplib
     from email.mime.text import MIMEText
     from email.mime.multipart import MIMEMultipart
@@ -1159,6 +1160,16 @@ def send_gmail_smtp(to, subject, body, cc=None, html=None):
     msg["Subject"] = subject
     if cc:
         msg["Cc"] = cc
+    # Threading + Reply-To, so a handoff can be REPLIED to rather than re-composed.
+    # Manae's point (2026-08-18): if her answer arrives as a brand-new email from a
+    # different address, the prospect may not recognise the conversation. With these
+    # headers her Reply goes straight to the prospect, inside their original thread,
+    # quoting what they asked.
+    if reply_to:
+        msg["Reply-To"] = reply_to
+    if in_reply_to:
+        msg["In-Reply-To"] = in_reply_to
+        msg["References"] = references or in_reply_to
 
     full_body = body if SENDING_NAME in body else body + f"\n\n{SENDING_NAME} | {COMPANY_NAME}"
     msg.attach(MIMEText(full_body, "plain"))
@@ -1443,14 +1454,19 @@ TASK_DUE_MINUTES = int(os.environ.get("TASK_DUE_MINUTES", "30") or 30)
 # Leads are announced in Slack so the team sees the queue without waiting for an email
 # digest: GCD leads to #GCD, Joffe leads to #GrowthTeam (Chris, 2026-08-13). Unset token
 # = silently skipped, so a missing secret never costs us a run.
-# Per-lead handoff email. OFF by default as of 2026-08-17: the HubSpot task is the
+# Per-lead handoff email. Back ON as of 2026-08-18, but it is no longer a duplicate
+# notification — it is a threaded forward with Reply-To set to the prospect, so it is the
+# thing the rep actually works from: hit Reply and the answer lands in the prospect's own
+# conversation, quoting what they asked. The task is the queue and the escalation clock;
+# the record carries the reply as a logged Email. Set HANDOFF_EMAIL=0 for task-only.
+# (Previous note: OFF as of 2026-08-17 — the HubSpot task is the
 # notification now (it carries the ask, and the full reply is logged as a note on the
 # record), Slack carries the passive feed, and the 12-hour escalation is the safety net.
 # Beyond cutting three notifications to one, this routes the rep THROUGH HubSpot to
 # respond — which is what gets the reply logged, which is what makes the five-minute timer
 # measure reality instead of measuring who remembered to log. Set HANDOFF_EMAIL=1 to
 # restore it without a deploy.
-HANDOFF_EMAIL = (os.environ.get("HANDOFF_EMAIL", "0") or "0").strip() not in ("0", "false", "no")
+HANDOFF_EMAIL = (os.environ.get("HANDOFF_EMAIL", "1") or "1").strip() not in ("0", "false", "no")
 
 SLACK_BOT_TOKEN    = os.environ.get("SLACK_BOT_TOKEN", "")
 SLACK_LEADS_CHANNEL = os.environ.get("SLACK_LEADS_CHANNEL") or "C0804PH0W0Z"   # #GCD (private)
@@ -1488,6 +1504,48 @@ def _resolve_owner_id(email=None):
     except Exception as e:
         log.warning(f"    HubSpot owner lookup failed: {e}")
     return _HS_OWNER_ID
+
+
+def hubspot_log_reply_email(cid, reply_text, subject, from_email, from_name="",
+                            to_email="", when_iso=None):
+    """Log the prospect's reply as an EMAIL on the contact, not just a note.
+
+    Manae asked for this directly (2026-08-18): a note is a copy of the conversation, an
+    email engagement IS the conversation — it lands under Email on the record, so the whole
+    exchange and any reply she sends live in one place.
+
+    Verified against the live portal: an INCOMING_EMAIL engagement moves neither
+    notes_last_contacted nor hs_last_sales_activity_timestamp, so logging it cannot make an
+    unanswered lead look answered in the five-minute timer.
+    """
+    if not cid or not HUBSPOT_TOKEN:
+        return ""
+    first, _, last = (from_name or "").partition(" ")
+    props = {
+        "hs_timestamp": when_iso or _now_iso(),
+        "hs_email_direction": "INCOMING_EMAIL",
+        "hs_email_status": "SENT",
+        "hs_email_subject": (subject or "Reply to outreach")[:250],
+        "hs_email_from_email": from_email or "",
+        "hs_email_to_email": to_email or os.environ.get("GMAIL_ADDRESS", ""),
+        "hs_email_text": clean_quote(reply_text or "")[:60000],
+    }
+    if first:
+        props["hs_email_from_firstname"] = first[:60]
+    if last:
+        props["hs_email_from_lastname"] = last[:60]
+    payload = {"properties": props, "associations": [{"to": {"id": cid}, "types": [
+        {"associationCategory": "HUBSPOT_DEFINED", "associationTypeId": 198}]}]}
+    try:
+        st, data = http_post_raw("https://api.hubapi.com/crm/v3/objects/emails",
+                                 {"Authorization": f"Bearer {HUBSPOT_TOKEN}",
+                                  "Content-Type": "application/json"}, payload)
+        if st in (200, 201):
+            return str(data.get("id", ""))
+        log.warning(f"    HubSpot email log failed ({st}): {str(data)[:140]}")
+    except Exception as e:
+        log.warning(f"    HubSpot email log failed: {e}")
+    return ""
 
 
 def hubspot_log_reply_note(cid, reply_text, why="", when_iso=None):
@@ -1801,7 +1859,7 @@ def _extract_phone(text):
 
 def hubspot_upsert_sql(email, first="", last="", company="", phone="",
                        stage="salesqualifiedlead", why="", task_priority="HIGH",
-                       reply_text=""):
+                       reply_text="", reply_subject=""):
     """Create or update a HubSpot contact as a lead. Returns the contact id (for a record
     link) or '' on failure. Needs contacts write scope.
 
@@ -1843,6 +1901,8 @@ def hubspot_upsert_sql(email, first="", last="", company="", phone="",
                 r.read()
             log.info(f"    HubSpot: updated {redact_email(email)} → {stage}"
                      + (f" (owner {owner_id})" if owner_id else " (no owner)"))
+            hubspot_log_reply_email(cid, reply_text, reply_subject, email,
+                                    from_name=(first + " " + last).strip())
             hubspot_log_reply_note(cid, reply_text, why)
             hubspot_create_followup_task(cid, owner_id,
                                          (first + " " + last).strip() or company, why,
@@ -1854,6 +1914,8 @@ def hubspot_upsert_sql(email, first="", last="", company="", phone="",
             cid = str(cdata.get("id", ""))
             log.info(f"    HubSpot: created {redact_email(email)} → {stage}"
                      + (f" (owner {owner_id})" if owner_id else " (no owner)"))
+            hubspot_log_reply_email(cid, reply_text, reply_subject, email,
+                                    from_name=(first + " " + last).strip())
             hubspot_log_reply_note(cid, reply_text, why)
             hubspot_create_followup_task(cid, owner_id,
                                          (first + " " + last).strip() or company, why,
@@ -2015,6 +2077,9 @@ def check_replies(state, dry_run=False):
 
                 sender  = msg.get("From", "Unknown")
                 subject = msg.get("Subject", "")
+                # Kept so the handoff can thread back into the prospect's own conversation.
+                reply_msg_id = (msg.get("Message-ID") or "").strip()
+                reply_refs = (msg.get("References") or "").strip()
                 body_text = _reply_body(msg)
 
                 sender_name, sender_email = parse_from(sender)
@@ -2155,6 +2220,7 @@ def check_replies(state, dry_run=False):
                                                           company=company, phone=phone,
                                                           stage=stage, why=reason,
                                                           reply_text=body_text,
+                                                          reply_subject=subject,
                                                           task_priority=("HIGH" if is_sql
                                                                          else "MEDIUM"))
                             hs_link  = _hubspot_link(cid)
@@ -2285,7 +2351,15 @@ def check_replies(state, dry_run=False):
                     if not dry_run:
                         if not _already:
                             if HANDOFF_EMAIL:
-                                send_email(MANAE_EMAIL, fwd_subject, fwd_body, html=fwd_html)
+                                # Subject mirrors the prospect's own so her client threads
+                                # it; Reply-To is the prospect so Reply reaches THEM, not us.
+                                _thread_subj = (subject if subject.lower().startswith("re:")
+                                                else f"Re: {subject}") if subject else fwd_subject
+                                send_email(MANAE_EMAIL, _thread_subj, fwd_body, html=fwd_html,
+                                           reply_to=sender_email,
+                                           in_reply_to=reply_msg_id or None,
+                                           references=(reply_refs + " " + reply_msg_id).strip()
+                                                      or None)
                             _fwd_log[(sender_email or "").lower()] = today_str()
                             # keep the log from growing without bound
                             if len(_fwd_log) > 2000:

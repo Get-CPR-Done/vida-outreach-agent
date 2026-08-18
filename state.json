@@ -163,7 +163,8 @@
     "2026-08-14": 2,
     "2026-08-15": 0,
     "2026-08-16": 0,
-    "2026-08-17": 5
+    "2026-08-17": 5,
+    "2026-08-18": 0
   },
   "do_not_contact": [],
   "bounce_replacement_queue": [],
@@ -196,7 +197,7 @@
     "2026-08-15": 8,
     "2026-08-16": 7,
     "2026-08-17": 6,
-    "2026-08-18": 614
+    "2026-08-18": 619
   },
   "daily_sql_count": {
     "2026-07-30": 4,
@@ -223,7 +224,8 @@
     "2026-08-13": 2,
     "2026-08-14": 2,
     "2026-08-15": 1,
-    "2026-08-17": 4
+    "2026-08-17": 4,
+    "2026-08-18": 1
   },
   "daily_customer_count": {
     "2026-07-31": 2,
@@ -248,16 +250,6 @@
       "company": "",
       "why": "Asking for scheduling details: dates, times, location, participant count, course type.",
       "handed_at": "2026-08-17T17:41:49-07:00",
-      "alerted": false,
-      "closed": false
-    },
-    {
-      "email": "michele@creativemindslc.com",
-      "cid": "33196946448",
-      "name": "Michele Ornum",
-      "company": "",
-      "why": "Requests hybrid class pricing for 10 people\u2014actionable today.",
-      "handed_at": "2026-08-17T17:41:58-07:00",
       "alerted": false,
       "closed": false
     }

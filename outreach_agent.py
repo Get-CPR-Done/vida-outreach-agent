@@ -1424,6 +1424,15 @@ TASK_DUE_MINUTES = int(os.environ.get("TASK_DUE_MINUTES", "30") or 30)
 # Leads are announced in Slack so the team sees the queue without waiting for an email
 # digest: GCD leads to #GCD, Joffe leads to #GrowthTeam (Chris, 2026-08-13). Unset token
 # = silently skipped, so a missing secret never costs us a run.
+# Per-lead handoff email. OFF by default as of 2026-08-17: the HubSpot task is the
+# notification now (it carries the ask, and the full reply is logged as a note on the
+# record), Slack carries the passive feed, and the 12-hour escalation is the safety net.
+# Beyond cutting three notifications to one, this routes the rep THROUGH HubSpot to
+# respond — which is what gets the reply logged, which is what makes the five-minute timer
+# measure reality instead of measuring who remembered to log. Set HANDOFF_EMAIL=1 to
+# restore it without a deploy.
+HANDOFF_EMAIL = (os.environ.get("HANDOFF_EMAIL", "0") or "0").strip() not in ("0", "false", "no")
+
 SLACK_BOT_TOKEN    = os.environ.get("SLACK_BOT_TOKEN", "")
 SLACK_LEADS_CHANNEL = os.environ.get("SLACK_LEADS_CHANNEL") or "C0804PH0W0Z"   # #GCD (private)
 STALL_HOURS = int(os.environ.get("STALL_HOURS", "12") or 12)
@@ -2243,13 +2252,18 @@ def check_replies(state, dry_run=False):
                     if _already:
                         log.info(f"  Already handed {redact_email(sender_email)} to Manae "
                                  f"today — updating HubSpot only, no second email")
-                    if not dry_run and not _already:
-                        send_email(MANAE_EMAIL, fwd_subject, fwd_body, html=fwd_html)
-                        _fwd_log[(sender_email or "").lower()] = today_str()
-                        # keep the log from growing without bound
-                        if len(_fwd_log) > 2000:
-                            for k in list(_fwd_log)[:1000]:
-                                _fwd_log.pop(k, None)
+                    if not dry_run:
+                        if not _already:
+                            if HANDOFF_EMAIL:
+                                send_email(MANAE_EMAIL, fwd_subject, fwd_body, html=fwd_html)
+                            _fwd_log[(sender_email or "").lower()] = today_str()
+                            # keep the log from growing without bound
+                            if len(_fwd_log) > 2000:
+                                for k in list(_fwd_log)[:1000]:
+                                    _fwd_log.pop(k, None)
+                        # ALWAYS mark it read, deduped or not. Leaving a deduped reply unread
+                        # would send it back through every reply check — re-upserting HubSpot
+                        # and creating another task and note each time.
                         mail.store(mid, "+FLAGS", "\\Seen")
                     genuine_count += 1
 

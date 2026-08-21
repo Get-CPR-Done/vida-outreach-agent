@@ -89,6 +89,35 @@
         "lifecycleStage": "customer",
         "error": false
       }
+    },
+    {
+      "contact": {
+        "row": 13798,
+        "email": "TANYATINYTOTS@AOL.COM",
+        "firstName": "Spielman",
+        "lastName": "Tanya",
+        "firstNameRaw": "SPIELMAN",
+        "lastNameRaw": "TANYA",
+        "company": "",
+        "tags": [
+          "child care",
+          "FAMILY DAY CARE HOME"
+        ],
+        "sourceList": "CA Orgs (Child Facing)",
+        "is_role": false,
+        "touch": 1
+      },
+      "hubspot": {
+        "found": true,
+        "isCustomer": true,
+        "name": "Tanya Spielman",
+        "company": "Tanya's Tiny Tots",
+        "lastDealName": "Tiny Tots- Pediatric CPR/AED & First Aid Training w/ EMSA Stickers",
+        "lastDealValue": 680.0,
+        "lastDealDate": "2024-07-03",
+        "lifecycleStage": "customer",
+        "error": false
+      }
     }
   ],
   "last_roster_send": "2026-08-03",
@@ -119,7 +148,8 @@
     "2026-08-17": 1250,
     "2026-08-18": 635,
     "2026-08-19": 535,
-    "2026-08-20": 983
+    "2026-08-20": 983,
+    "2026-08-21": 919
   },
   "daily_reply_count": {
     "2026-06-15": 10,
@@ -172,8 +202,8 @@
   },
   "do_not_contact": [],
   "bounce_replacement_queue": [],
-  "sheet_cursor": 11460,
-  "last_daily_run": "2026-08-20",
+  "sheet_cursor": 14087,
+  "last_daily_run": "2026-08-21",
   "daily_new_count": {
     "2026-07-29": 750,
     "2026-07-30": 281,
@@ -184,7 +214,8 @@
     "2026-08-13": 608,
     "2026-08-14": 468,
     "2026-08-19": 29,
-    "2026-08-20": 237
+    "2026-08-20": 237,
+    "2026-08-21": 919
   },
   "daily_bounce_count": {
     "2026-07-30": 292,
@@ -205,7 +236,8 @@
     "2026-08-17": 6,
     "2026-08-18": 619,
     "2026-08-19": 724,
-    "2026-08-20": 275
+    "2026-08-20": 275,
+    "2026-08-21": 329
   },
   "daily_sql_count": {
     "2026-07-30": 4,
@@ -240,7 +272,8 @@
   },
   "daily_customer_count": {
     "2026-07-31": 2,
-    "2026-08-07": 3
+    "2026-08-07": 3,
+    "2026-08-21": 1
   },
   "last_report_run": "2026-08-19",
   "daily_potential_count": {

@@ -198,7 +198,8 @@
     "2026-08-17": 5,
     "2026-08-18": 0,
     "2026-08-19": 0,
-    "2026-08-20": 1
+    "2026-08-20": 1,
+    "2026-08-21": 1
   },
   "do_not_contact": [],
   "bounce_replacement_queue": [],
@@ -237,7 +238,7 @@
     "2026-08-18": 619,
     "2026-08-19": 724,
     "2026-08-20": 275,
-    "2026-08-21": 329
+    "2026-08-21": 332
   },
   "daily_sql_count": {
     "2026-07-30": 4,
@@ -278,14 +279,16 @@
   "last_report_run": "2026-08-19",
   "daily_potential_count": {
     "2026-08-13": 1,
-    "2026-08-17": 2
+    "2026-08-17": 2,
+    "2026-08-21": 1
   },
   "forwarded_recent": {
     "lsilva@eusd.org": "2026-08-17",
     "wramirez@ventureca.org": "2026-08-17",
     "manae@getcprdone.com": "2026-08-17",
     "michele@creativemindslc.com": "2026-08-17",
-    "boonttribe@gmail.com": "2026-08-20"
+    "boonttribe@gmail.com": "2026-08-20",
+    "ballenafamilychildcare@hotmail.com": "2026-08-21"
   },
   "open_leads": [
     {
@@ -295,16 +298,6 @@
       "company": "",
       "why": "Asking for scheduling details: dates, times, location, participant count, course type.",
       "handed_at": "2026-08-17T17:41:49-07:00",
-      "alerted": false,
-      "closed": false
-    },
-    {
-      "email": "boonttribe@gmail.com",
-      "cid": "243317638002",
-      "name": "Seasha Robb",
-      "company": "",
-      "why": "Asks certification type, specifies 7 staff need training, names course levels.",
-      "handed_at": "2026-08-20T17:47:36-07:00",
       "alerted": false,
       "closed": false
     }

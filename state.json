@@ -206,7 +206,8 @@
     "2026-08-22": 0,
     "2026-08-23": 0,
     "2026-08-24": 3,
-    "2026-08-25": 4
+    "2026-08-25": 4,
+    "2026-08-26": 0
   },
   "do_not_contact": [],
   "bounce_replacement_queue": [],
@@ -250,7 +251,7 @@
     "2026-08-23": 9,
     "2026-08-24": 3,
     "2026-08-25": 624,
-    "2026-08-26": 676
+    "2026-08-26": 681
   },
   "daily_sql_count": {
     "2026-07-30": 4,
@@ -285,7 +286,8 @@
     "2026-08-20": 2,
     "2026-08-22": 1,
     "2026-08-24": 2,
-    "2026-08-25": 8
+    "2026-08-25": 8,
+    "2026-08-26": 5
   },
   "daily_customer_count": {
     "2026-07-31": 2,
@@ -322,16 +324,6 @@
       "company": "",
       "why": "Asking for scheduling details: dates, times, location, participant count, course type.",
       "handed_at": "2026-08-17T17:41:49-07:00",
-      "alerted": false,
-      "closed": false
-    },
-    {
-      "email": "troseborough607@yahoo.com",
-      "cid": "244331783082",
-      "name": "Terry Roseborough",
-      "company": "",
-      "why": "Explicit request to call tomorrow; ready to schedule.",
-      "handed_at": "2026-08-25T19:57:35-07:00",
       "alerted": false,
       "closed": false
     }

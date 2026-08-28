@@ -153,7 +153,8 @@
     "2026-08-24": 1249,
     "2026-08-25": 629,
     "2026-08-26": 573,
-    "2026-08-27": 935
+    "2026-08-27": 935,
+    "2026-08-28": 1042
   },
   "daily_reply_count": {
     "2026-06-15": 10,
@@ -209,12 +210,13 @@
     "2026-08-24": 3,
     "2026-08-25": 4,
     "2026-08-26": 0,
-    "2026-08-27": 11
+    "2026-08-27": 11,
+    "2026-08-28": 1
   },
   "do_not_contact": [],
   "bounce_replacement_queue": [],
-  "sheet_cursor": 17954,
-  "last_daily_run": "2026-08-27",
+  "sheet_cursor": 18457,
+  "last_daily_run": "2026-08-28",
   "daily_new_count": {
     "2026-07-29": 750,
     "2026-07-30": 281,
@@ -227,7 +229,8 @@
     "2026-08-19": 29,
     "2026-08-20": 237,
     "2026-08-21": 919,
-    "2026-08-27": 935
+    "2026-08-27": 935,
+    "2026-08-28": 278
   },
   "daily_bounce_count": {
     "2026-07-30": 292,
@@ -255,7 +258,8 @@
     "2026-08-24": 3,
     "2026-08-25": 624,
     "2026-08-26": 681,
-    "2026-08-27": 324
+    "2026-08-27": 324,
+    "2026-08-28": 207
   },
   "daily_sql_count": {
     "2026-07-30": 4,
@@ -271,7 +275,8 @@
     "2026-08-17": 2,
     "2026-08-20": 1,
     "2026-08-25": 1,
-    "2026-08-27": 3
+    "2026-08-27": 3,
+    "2026-08-28": 1
   },
   "daily_unsub_count": {
     "2026-07-30": 3,
@@ -332,7 +337,8 @@
     "jprabbit@gmail.com": "2026-08-27",
     "sluchildcare@hotmail.com": "2026-08-27",
     "rocioshaver2005@yahoo.com": "2026-08-27",
-    "tecolafoster@gmail.com": "2026-08-27"
+    "tecolafoster@gmail.com": "2026-08-27",
+    "7277perez@gmail.com": "2026-08-28"
   },
   "open_leads": [
     {
@@ -372,6 +378,16 @@
       "company": "",
       "why": "Interested, stated 1 employee needs certification",
       "handed_at": "2026-08-27T17:49:55-07:00",
+      "alerted": false,
+      "closed": false
+    },
+    {
+      "email": "7277perez@gmail.com",
+      "cid": "244919413289",
+      "name": "Ana Perez",
+      "company": "",
+      "why": "Confirms call interest, proposes specific times tomorrow.",
+      "handed_at": "2026-08-28T01:02:40-07:00",
       "alerted": false,
       "closed": false
     }

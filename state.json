@@ -208,7 +208,8 @@
     "2026-08-23": 0,
     "2026-08-24": 3,
     "2026-08-25": 4,
-    "2026-08-26": 0
+    "2026-08-26": 0,
+    "2026-08-27": 11
   },
   "do_not_contact": [],
   "bounce_replacement_queue": [],
@@ -254,7 +255,7 @@
     "2026-08-24": 3,
     "2026-08-25": 624,
     "2026-08-26": 681,
-    "2026-08-27": 314
+    "2026-08-27": 324
   },
   "daily_sql_count": {
     "2026-07-30": 4,
@@ -269,7 +270,8 @@
     "2026-08-13": 3,
     "2026-08-17": 2,
     "2026-08-20": 1,
-    "2026-08-25": 1
+    "2026-08-25": 1,
+    "2026-08-27": 3
   },
   "daily_unsub_count": {
     "2026-07-30": 3,
@@ -290,7 +292,8 @@
     "2026-08-22": 1,
     "2026-08-24": 2,
     "2026-08-25": 8,
-    "2026-08-26": 5
+    "2026-08-26": 5,
+    "2026-08-27": 1
   },
   "daily_customer_count": {
     "2026-07-31": 2,
@@ -303,7 +306,8 @@
     "2026-08-17": 2,
     "2026-08-21": 1,
     "2026-08-24": 3,
-    "2026-08-25": 3
+    "2026-08-25": 3,
+    "2026-08-27": 5
   },
   "forwarded_recent": {
     "lsilva@eusd.org": "2026-08-17",
@@ -317,7 +321,18 @@
     "ccwshari@gmail.com": "2026-08-24",
     "loquetta@live.com": "2026-08-25",
     "lbchristian1@gmail.com": "2026-08-25",
-    "troseborough607@yahoo.com": "2026-08-25"
+    "troseborough607@yahoo.com": "2026-08-25",
+    "arainbowofcare.hc@gmail.com": "2026-08-27",
+    "scrystal8674@yahoo.com": "2026-08-27",
+    "kamilahj428@gmail.com": "2026-08-27",
+    "teddievelte42@gmail.com": "2026-08-27",
+    "pooja.michael@gmail.com": "2026-08-27",
+    "lissette_virgen@yahoo.com": "2026-08-27",
+    "mrs.tward@yahoo.com": "2026-08-27",
+    "jprabbit@gmail.com": "2026-08-27",
+    "sluchildcare@hotmail.com": "2026-08-27",
+    "rocioshaver2005@yahoo.com": "2026-08-27",
+    "tecolafoster@gmail.com": "2026-08-27"
   },
   "open_leads": [
     {
@@ -327,6 +342,36 @@
       "company": "",
       "why": "Asking for scheduling details: dates, times, location, participant count, course type.",
       "handed_at": "2026-08-17T17:41:49-07:00",
+      "alerted": false,
+      "closed": false
+    },
+    {
+      "email": "arainbowofcare.hc@gmail.com",
+      "cid": "244875219778",
+      "name": "A Care",
+      "company": "",
+      "why": "Asking for pricing; ready to move forward.",
+      "handed_at": "2026-08-27T17:49:00-07:00",
+      "alerted": false,
+      "closed": false
+    },
+    {
+      "email": "lissette_virgen@yahoo.com",
+      "cid": "244877272966",
+      "name": "Lissette J.",
+      "company": "",
+      "why": "Asks pricing, quantity needed, service options. Ready to move forward.",
+      "handed_at": "2026-08-27T17:49:28-07:00",
+      "alerted": false,
+      "closed": false
+    },
+    {
+      "email": "tecolafoster@gmail.com",
+      "cid": "244876144785",
+      "name": "Tecola Foster",
+      "company": "",
+      "why": "Interested, stated 1 employee needs certification",
+      "handed_at": "2026-08-27T17:49:55-07:00",
       "alerted": false,
       "closed": false
     }

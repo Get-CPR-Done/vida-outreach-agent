@@ -211,7 +211,7 @@
     "2026-08-25": 4,
     "2026-08-26": 0,
     "2026-08-27": 11,
-    "2026-08-28": 1
+    "2026-08-28": 3
   },
   "do_not_contact": [],
   "bounce_replacement_queue": [],
@@ -259,7 +259,7 @@
     "2026-08-25": 624,
     "2026-08-26": 681,
     "2026-08-27": 324,
-    "2026-08-28": 379
+    "2026-08-28": 383
   },
   "daily_sql_count": {
     "2026-07-30": 4,
@@ -298,7 +298,8 @@
     "2026-08-24": 2,
     "2026-08-25": 8,
     "2026-08-26": 5,
-    "2026-08-27": 1
+    "2026-08-27": 1,
+    "2026-08-28": 2
   },
   "daily_customer_count": {
     "2026-07-31": 2,
@@ -312,7 +313,8 @@
     "2026-08-21": 1,
     "2026-08-24": 3,
     "2026-08-25": 3,
-    "2026-08-27": 5
+    "2026-08-27": 5,
+    "2026-08-28": 1
   },
   "forwarded_recent": {
     "lsilva@eusd.org": "2026-08-17",
@@ -337,8 +339,9 @@
     "jprabbit@gmail.com": "2026-08-27",
     "sluchildcare@hotmail.com": "2026-08-27",
     "rocioshaver2005@yahoo.com": "2026-08-27",
-    "tecolafoster@gmail.com": "2026-08-27",
-    "7277perez@gmail.com": "2026-08-28"
+    "tecolafoster@gmail.com": "2026-08-28",
+    "7277perez@gmail.com": "2026-08-28",
+    "michellesexplorers@gmail.com": "2026-08-28"
   },
   "open_leads": [
     {
@@ -348,46 +351,6 @@
       "company": "",
       "why": "Asking for scheduling details: dates, times, location, participant count, course type.",
       "handed_at": "2026-08-17T17:41:49-07:00",
-      "alerted": false,
-      "closed": false
-    },
-    {
-      "email": "arainbowofcare.hc@gmail.com",
-      "cid": "244875219778",
-      "name": "A Care",
-      "company": "",
-      "why": "Asking for pricing; ready to move forward.",
-      "handed_at": "2026-08-27T17:49:00-07:00",
-      "alerted": false,
-      "closed": false
-    },
-    {
-      "email": "lissette_virgen@yahoo.com",
-      "cid": "244877272966",
-      "name": "Lissette J.",
-      "company": "",
-      "why": "Asks pricing, quantity needed, service options. Ready to move forward.",
-      "handed_at": "2026-08-27T17:49:28-07:00",
-      "alerted": false,
-      "closed": false
-    },
-    {
-      "email": "tecolafoster@gmail.com",
-      "cid": "244876144785",
-      "name": "Tecola Foster",
-      "company": "",
-      "why": "Interested, stated 1 employee needs certification",
-      "handed_at": "2026-08-27T17:49:55-07:00",
-      "alerted": false,
-      "closed": false
-    },
-    {
-      "email": "7277perez@gmail.com",
-      "cid": "244919413289",
-      "name": "Ana Perez",
-      "company": "",
-      "why": "Confirms call interest, proposes specific times tomorrow.",
-      "handed_at": "2026-08-28T01:02:40-07:00",
       "alerted": false,
       "closed": false
     }

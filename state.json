@@ -214,7 +214,8 @@
     "2026-08-27": 11,
     "2026-08-28": 3,
     "2026-08-29": 0,
-    "2026-08-30": 0
+    "2026-08-30": 0,
+    "2026-08-31": 2
   },
   "do_not_contact": [],
   "bounce_replacement_queue": [],
@@ -264,7 +265,8 @@
     "2026-08-27": 324,
     "2026-08-28": 387,
     "2026-08-29": 3,
-    "2026-08-30": 2
+    "2026-08-30": 2,
+    "2026-08-31": 4
   },
   "daily_sql_count": {
     "2026-07-30": 4,
@@ -281,7 +283,8 @@
     "2026-08-20": 1,
     "2026-08-25": 1,
     "2026-08-27": 3,
-    "2026-08-28": 1
+    "2026-08-28": 1,
+    "2026-08-31": 2
   },
   "daily_unsub_count": {
     "2026-07-30": 3,
@@ -346,7 +349,9 @@
     "rocioshaver2005@yahoo.com": "2026-08-27",
     "tecolafoster@gmail.com": "2026-08-28",
     "7277perez@gmail.com": "2026-08-28",
-    "michellesexplorers@gmail.com": "2026-08-28"
+    "michellesexplorers@gmail.com": "2026-08-28",
+    "mela.fierros09@gmail.com": "2026-08-31",
+    "bdlcgayle@gmail.com": "2026-08-31"
   },
   "open_leads": [
     {
@@ -356,6 +361,26 @@
       "company": "",
       "why": "Asking for scheduling details: dates, times, location, participant count, course type.",
       "handed_at": "2026-08-17T17:41:49-07:00",
+      "alerted": false,
+      "closed": false
+    },
+    {
+      "email": "mela.fierros09@gmail.com",
+      "cid": "245597806943",
+      "name": "Melanea Fierros",
+      "company": "",
+      "why": "Asks about location and availability; ready to schedule.",
+      "handed_at": "2026-08-31T14:24:07-07:00",
+      "alerted": false,
+      "closed": false
+    },
+    {
+      "email": "bdlcgayle@gmail.com",
+      "cid": "245612486011",
+      "name": "Allison Mineweaser",
+      "company": "",
+      "why": "Asks for rates, cc'd team for decision, recertification needed fall.",
+      "handed_at": "2026-08-31T14:24:14-07:00",
       "alerted": false,
       "closed": false
     }

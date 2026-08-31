@@ -62,13 +62,19 @@ AGENT_KEY     = (os.environ.get("AGENT_KEY") or SENDER_FIRST).lower()
 PROOF_POINT   = ("we've trained thousands of people across the country — teachers, school "
                  "and childcare staff, camp staff, and workplace teams")
 
-# Daily send cap. 750/day is the target (working through the full list roughly
-# quarterly). Runs unattended on GitHub Actions, so the send spacing is tightened
-# to fit the 6-hour job limit (750 * ~15s avg ≈ 3.1h). Single mailbox — Google's
-# hard cap is ~2,000/day; to scale past this, add mailboxes/subdomains, don't just
-# raise the number. (Sustained 750/day requires the repo to be PUBLIC for free
-# unlimited Actions minutes — see README.)
-BATCH_SIZE    = 1250
+# Daily send cap. CUT to 200 on 2026-08-31 to protect the getcprdone.com sending
+# domain. Raising the caps on 8/17 (Vida 750 -> 1,250, Elena 750 -> 1,000, so ~2,250/day
+# off one shared domain in a single step, no ramp) collapsed deliverability: bounces went
+# 5.9% -> 53% and reply rate 1.14% -> 0.31%. The tell that it's reputation and not list
+# quality: on 8/18, 8/25 and 8/26 every send was a *follow-up* touch to an address that had
+# already accepted mail from us, and ~97% of them were refused at the SMTP handshake.
+# getcprdone.com also carries real customer and sales mail, so this is not just an outreach
+# problem. Do NOT raise this again until (a) the 550 reasons in the sheet's last_result
+# column are diagnosed, (b) the list is verified — 5-6% bounce pre-raise was already above
+# the ~2% that providers penalise — and (c) outreach moves to its own subdomain. When it
+# does go back up, ramp it. Google's ~2,000/day per mailbox was never the binding
+# constraint; reputation was.
+BATCH_SIZE    = 200
 # Spacing between sends. Tightened from 10-20s when the cap went to 1,250: real runs
 # averaged 18.7s per send end-to-end (sleep + generation + the HubSpot customer check), so
 # 1,250 x 18.7s = 6.5h would have run past the job timeout and truncated the batch without

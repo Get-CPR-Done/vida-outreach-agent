@@ -39,7 +39,8 @@
     "2026-08-27": 935,
     "2026-08-28": 1078,
     "2026-08-31": 1248,
-    "2026-09-01": 199
+    "2026-09-01": 199,
+    "2026-09-02": 199
   },
   "daily_reply_count": {
     "2026-06-15": 10,
@@ -100,12 +101,13 @@
     "2026-08-29": 0,
     "2026-08-30": 0,
     "2026-08-31": 3,
-    "2026-09-01": 2
+    "2026-09-01": 2,
+    "2026-09-02": 1
   },
   "do_not_contact": [],
   "bounce_replacement_queue": [],
   "sheet_cursor": 18669,
-  "last_daily_run": "2026-09-01",
+  "last_daily_run": "2026-09-02",
   "daily_new_count": {
     "2026-07-29": 750,
     "2026-07-30": 281,
@@ -195,7 +197,8 @@
     "2026-08-26": 5,
     "2026-08-27": 1,
     "2026-08-28": 2,
-    "2026-08-31": 1
+    "2026-08-31": 1,
+    "2026-09-02": 2
   },
   "daily_customer_count": {
     "2026-07-31": 2,
@@ -212,7 +215,8 @@
     "2026-08-27": 5,
     "2026-08-28": 1,
     "2026-08-31": 1,
-    "2026-09-01": 1
+    "2026-09-01": 1,
+    "2026-09-02": 1
   },
   "forwarded_recent": {
     "lsilva@eusd.org": "2026-08-17",
@@ -244,7 +248,8 @@
     "bdlcgayle@gmail.com": "2026-08-31",
     "eileen@harmonyhcare.com": "2026-08-31",
     "kimlavrivera@gmail.com": "2026-09-01",
-    "soniao20092009@hotmail.com": "2026-09-01"
+    "soniao20092009@hotmail.com": "2026-09-01",
+    "lisa.adam6@gmail.com": "2026-09-02"
   },
   "open_leads": [
     {
@@ -254,16 +259,6 @@
       "company": "",
       "why": "Asking for scheduling details: dates, times, location, participant count, course type.",
       "handed_at": "2026-08-17T17:41:49-07:00",
-      "alerted": false,
-      "closed": false
-    },
-    {
-      "email": "kimlavrivera@gmail.com",
-      "cid": "245868214681",
-      "name": "Lavada Rivera",
-      "company": "",
-      "why": "Asks about Saturday home visits, wants to schedule, provides phone number",
-      "handed_at": "2026-09-01T12:19:18-07:00",
       "alerted": false,
       "closed": false
     }

@@ -111,7 +111,8 @@
     "2026-09-04": 0,
     "2026-09-05": 0,
     "2026-09-06": 0,
-    "2026-09-07": 0
+    "2026-09-07": 0,
+    "2026-09-08": 1
   },
   "do_not_contact": [],
   "bounce_replacement_queue": [],
@@ -166,7 +167,8 @@
     "2026-09-01": 1,
     "2026-09-02": 1,
     "2026-09-03": 1,
-    "2026-09-07": 1
+    "2026-09-07": 1,
+    "2026-09-08": 1
   },
   "daily_sql_count": {
     "2026-07-30": 4,
@@ -185,7 +187,8 @@
     "2026-08-27": 3,
     "2026-08-28": 1,
     "2026-08-31": 2,
-    "2026-09-01": 1
+    "2026-09-01": 1,
+    "2026-09-08": 1
   },
   "daily_unsub_count": {
     "2026-07-30": 3,
@@ -261,7 +264,8 @@
     "eileen@harmonyhcare.com": "2026-08-31",
     "kimlavrivera@gmail.com": "2026-09-01",
     "soniao20092009@hotmail.com": "2026-09-01",
-    "lisa.adam6@gmail.com": "2026-09-02"
+    "lisa.adam6@gmail.com": "2026-09-02",
+    "miss.fariba7@gmail.com": "2026-09-08"
   },
   "open_leads": [
     {
@@ -271,6 +275,16 @@
       "company": "",
       "why": "Asking for scheduling details: dates, times, location, participant count, course type.",
       "handed_at": "2026-08-17T17:41:49-07:00",
+      "alerted": false,
+      "closed": false
+    },
+    {
+      "email": "miss.fariba7@gmail.com",
+      "cid": "247176124487",
+      "name": "Fariba Saghebi",
+      "company": "",
+      "why": "Asks for pricing; ready to evaluate and potentially book.",
+      "handed_at": "2026-09-08T12:21:41-07:00",
       "alerted": false,
       "closed": false
     }

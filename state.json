@@ -113,7 +113,8 @@
     "2026-09-05": 0,
     "2026-09-06": 0,
     "2026-09-07": 0,
-    "2026-09-08": 1
+    "2026-09-08": 1,
+    "2026-09-09": 1
   },
   "do_not_contact": [],
   "bounce_replacement_queue": [],
@@ -189,7 +190,8 @@
     "2026-08-28": 1,
     "2026-08-31": 2,
     "2026-09-01": 1,
-    "2026-09-08": 1
+    "2026-09-08": 1,
+    "2026-09-09": 1
   },
   "daily_unsub_count": {
     "2026-07-30": 3,
@@ -214,7 +216,8 @@
     "2026-08-27": 1,
     "2026-08-28": 2,
     "2026-08-31": 1,
-    "2026-09-02": 2
+    "2026-09-02": 2,
+    "2026-09-09": 1
   },
   "daily_customer_count": {
     "2026-07-31": 2,
@@ -266,7 +269,8 @@
     "kimlavrivera@gmail.com": "2026-09-01",
     "soniao20092009@hotmail.com": "2026-09-01",
     "lisa.adam6@gmail.com": "2026-09-02",
-    "miss.fariba7@gmail.com": "2026-09-08"
+    "miss.fariba7@gmail.com": "2026-09-08",
+    "petie114@yahoo.com": "2026-09-09"
   },
   "open_leads": [
     {
@@ -280,12 +284,12 @@
       "closed": false
     },
     {
-      "email": "miss.fariba7@gmail.com",
-      "cid": "247176124487",
-      "name": "Fariba Saghebi",
+      "email": "petie114@yahoo.com",
+      "cid": "267101",
+      "name": "Lupita Flores",
       "company": "",
-      "why": "Asks for pricing; ready to evaluate and potentially book.",
-      "handed_at": "2026-09-08T12:21:41-07:00",
+      "why": "Asking for pricing quote for 10-person team",
+      "handed_at": "2026-09-09T12:11:25-07:00",
       "alerted": false,
       "closed": false
     }

@@ -115,7 +115,8 @@
     "2026-09-06": 0,
     "2026-09-07": 0,
     "2026-09-08": 1,
-    "2026-09-09": 3
+    "2026-09-09": 3,
+    "2026-09-10": 0
   },
   "do_not_contact": [],
   "bounce_replacement_queue": [],
@@ -171,7 +172,8 @@
     "2026-09-02": 1,
     "2026-09-03": 1,
     "2026-09-07": 1,
-    "2026-09-08": 1
+    "2026-09-08": 1,
+    "2026-09-10": 1
   },
   "daily_sql_count": {
     "2026-07-30": 4,
@@ -282,16 +284,6 @@
       "company": "",
       "why": "Asking for scheduling details: dates, times, location, participant count, course type.",
       "handed_at": "2026-08-17T17:41:49-07:00",
-      "alerted": false,
-      "closed": false
-    },
-    {
-      "email": "petie114@yahoo.com",
-      "cid": "267101",
-      "name": "Lupita Flores",
-      "company": "",
-      "why": "Asking for pricing quote for 10-person team",
-      "handed_at": "2026-09-09T12:11:25-07:00",
       "alerted": false,
       "closed": false
     }

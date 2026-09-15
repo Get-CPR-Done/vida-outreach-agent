@@ -122,7 +122,7 @@
     "2026-09-11": 0,
     "2026-09-12": 0,
     "2026-09-13": 0,
-    "2026-09-14": 1
+    "2026-09-14": 2
   },
   "do_not_contact": [],
   "bounce_replacement_queue": [],
@@ -204,7 +204,8 @@
     "2026-08-31": 2,
     "2026-09-01": 1,
     "2026-09-08": 1,
-    "2026-09-09": 2
+    "2026-09-09": 2,
+    "2026-09-14": 1
   },
   "daily_unsub_count": {
     "2026-07-30": 3,
@@ -287,7 +288,8 @@
     "miss.fariba7@gmail.com": "2026-09-08",
     "petie114@yahoo.com": "2026-09-09",
     "alwayzbehappy7777@gmail.com": "2026-09-09",
-    "ssauceda245@gmail.com": "2026-09-14"
+    "ssauceda245@gmail.com": "2026-09-14",
+    "terranovachristianpreschool@gmail.com": "2026-09-14"
   },
   "open_leads": [
     {
@@ -297,6 +299,16 @@
       "company": "",
       "why": "Asking for scheduling details: dates, times, location, participant count, course type.",
       "handed_at": "2026-08-17T17:41:49-07:00",
+      "alerted": false,
+      "closed": false
+    },
+    {
+      "email": "terranovachristianpreschool@gmail.com",
+      "cid": "248514120363",
+      "name": "Tatiana Hillman",
+      "company": "",
+      "why": "Asks minimum group size and pricing. Ready to move forward.",
+      "handed_at": "2026-09-14T17:25:36-07:00",
       "alerted": false,
       "closed": false
     }

@@ -145,7 +145,8 @@
     "2026-09-24": 2,
     "2026-09-25": 0,
     "2026-09-26": 0,
-    "2026-09-27": 0
+    "2026-09-27": 0,
+    "2026-09-28": 1
   },
   "do_not_contact": [],
   "bounce_replacement_queue": [],
@@ -219,7 +220,8 @@
     "2026-09-24": 1,
     "2026-09-25": 1,
     "2026-09-26": 1,
-    "2026-09-27": 1
+    "2026-09-27": 1,
+    "2026-09-28": 1
   },
   "daily_sql_count": {
     "2026-07-30": 4,
@@ -241,7 +243,8 @@
     "2026-09-01": 1,
     "2026-09-08": 1,
     "2026-09-09": 2,
-    "2026-09-14": 1
+    "2026-09-14": 1,
+    "2026-09-28": 1
   },
   "daily_unsub_count": {
     "2026-07-30": 3,
@@ -331,7 +334,8 @@
     "ssauceda245@gmail.com": "2026-09-14",
     "terranovachristianpreschool@gmail.com": "2026-09-14",
     "jokoby048@gmail.com": "2026-09-24",
-    "pmcfall740@prodigy.net": "2026-09-24"
+    "pmcfall740@prodigy.net": "2026-09-24",
+    "elise@thenestmontessori.com": "2026-09-28"
   },
   "open_leads": [
     {
@@ -341,6 +345,16 @@
       "company": "",
       "why": "Asking for scheduling details: dates, times, location, participant count, course type.",
       "handed_at": "2026-08-17T17:41:49-07:00",
+      "alerted": false,
+      "closed": false
+    },
+    {
+      "email": "elise@thenestmontessori.com",
+      "cid": "251522910553",
+      "name": "Elise Stewart",
+      "company": "",
+      "why": "Asks pricing and mentions teachers need CPR updated.",
+      "handed_at": "2026-09-28T14:46:42-07:00",
       "alerted": false,
       "closed": false
     }

@@ -149,7 +149,8 @@
     "2026-09-26": 0,
     "2026-09-27": 0,
     "2026-09-28": 1,
-    "2026-09-29": 4
+    "2026-09-29": 4,
+    "2026-09-30": 3
   },
   "do_not_contact": [],
   "bounce_replacement_queue": [],
@@ -250,7 +251,8 @@
     "2026-09-08": 1,
     "2026-09-09": 2,
     "2026-09-14": 1,
-    "2026-09-28": 1
+    "2026-09-28": 1,
+    "2026-09-30": 1
   },
   "daily_unsub_count": {
     "2026-07-30": 3,
@@ -281,7 +283,8 @@
     "2026-09-18": 1,
     "2026-09-23": 1,
     "2026-09-24": 1,
-    "2026-09-29": 1
+    "2026-09-29": 1,
+    "2026-09-30": 1
   },
   "daily_customer_count": {
     "2026-07-31": 2,
@@ -302,7 +305,8 @@
     "2026-09-02": 1,
     "2026-09-14": 1,
     "2026-09-24": 2,
-    "2026-09-29": 4
+    "2026-09-29": 4,
+    "2026-09-30": 1
   },
   "forwarded_recent": {
     "lsilva@eusd.org": "2026-08-17",
@@ -346,7 +350,10 @@
     "elise@thenestmontessori.com": "2026-09-28",
     "cynthiagraham10@gmail.com": "2026-09-29",
     "sydberry11@gmail.com": "2026-09-29",
-    "finkejones1@gmail.com": "2026-09-29"
+    "finkejones1@gmail.com": "2026-09-29",
+    "noahsarkdaycare2018@gmail.com": "2026-09-30",
+    "deidrajm82@gmail.com": "2026-09-30",
+    "ray.nikki@yahoo.com": "2026-09-30"
   },
   "open_leads": [
     {
@@ -356,6 +363,16 @@
       "company": "",
       "why": "Asking for scheduling details: dates, times, location, participant count, course type.",
       "handed_at": "2026-08-17T17:41:49-07:00",
+      "alerted": false,
+      "closed": false
+    },
+    {
+      "email": "noahsarkdaycare2018@gmail.com",
+      "cid": "252128016669",
+      "name": "Carolyn Simons",
+      "company": "",
+      "why": "Asks location, pricing, and class duration\u2014ready to book.",
+      "handed_at": "2026-09-30T13:41:28-07:00",
       "alerted": false,
       "closed": false
     }

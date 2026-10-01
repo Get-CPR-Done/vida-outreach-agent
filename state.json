@@ -151,7 +151,8 @@
     "2026-09-27": 0,
     "2026-09-28": 1,
     "2026-09-29": 4,
-    "2026-09-30": 3
+    "2026-09-30": 3,
+    "2026-10-01": 0
   },
   "do_not_contact": [],
   "bounce_replacement_queue": [],
@@ -231,7 +232,8 @@
     "2026-09-27": 1,
     "2026-09-28": 1,
     "2026-09-29": 1,
-    "2026-09-30": 1
+    "2026-09-30": 1,
+    "2026-10-01": 2
   },
   "daily_sql_count": {
     "2026-07-30": 4,
@@ -366,16 +368,6 @@
       "company": "",
       "why": "Asking for scheduling details: dates, times, location, participant count, course type.",
       "handed_at": "2026-08-17T17:41:49-07:00",
-      "alerted": false,
-      "closed": false
-    },
-    {
-      "email": "noahsarkdaycare2018@gmail.com",
-      "cid": "252128016669",
-      "name": "Carolyn Simons",
-      "company": "",
-      "why": "Asks location, pricing, and class duration\u2014ready to book.",
-      "handed_at": "2026-09-30T13:41:28-07:00",
       "alerted": false,
       "closed": false
     }

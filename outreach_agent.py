@@ -40,6 +40,7 @@ from datetime import date, datetime, timedelta, timezone
 from html import escape as html_escape, unescape as html_unescape
 from pathlib import Path
 
+import campaigns
 import sheets_db
 from email_format import clean_quote, link_html, paras_html, quote_block_html, wrapper_html
 
@@ -107,6 +108,30 @@ ROW_RANGE_END   = int(_row_range_end) if _row_range_end else None   # None → t
 # that predate this agent; dashboard lifetime metrics count ONLY rows this agent actually
 # contacted, i.e. date_sent >= this date. Vida went live 2026-06-12; Elena 2026-08-05.
 AGENT_LAUNCH_DATE = (os.environ.get("AGENT_LAUNCH_DATE", "") or "2026-06-12").strip()
+
+# Campaign block ("149805-151251"): rows appended past every partition and owned by this
+# agent alone — the other agent's ROW_RANGE_END must stop before it. New campaign contacts
+# are sent after follow-ups and before the cursor's new contacts, from CAMPAIGN_START_DATE
+# on. They never move the cursor. See campaigns.py.
+_campaign_rows = (os.environ.get("CAMPAIGN_ROWS", "") or "").strip()
+if _campaign_rows:
+    _a, _b = _campaign_rows.split("-")
+    CAMPAIGN_ROW_START, CAMPAIGN_ROW_END = int(_a), int(_b)
+else:
+    CAMPAIGN_ROW_START = CAMPAIGN_ROW_END = None
+CAMPAIGN_START_DATE = (os.environ.get("CAMPAIGN_START_DATE", "") or "").strip()
+# Statuses that mean the org has answered us — stop emailing everyone else there.
+CAMPAIGN_ORG_STOP = {"Replied", "Potential SQL", "SQL", "Unsubscribed", "Customer"}
+
+
+def in_campaign_rows(row):
+    return CAMPAIGN_ROW_START is not None and CAMPAIGN_ROW_START <= row <= CAMPAIGN_ROW_END
+
+
+def in_my_rows(row):
+    """This agent's partition, or its campaign block."""
+    in_part = row >= ROW_RANGE_START and (ROW_RANGE_END is None or row <= ROW_RANGE_END)
+    return in_part or in_campaign_rows(row)
 
 # ─── Credentials (env vars override these fallbacks) ─────────────────────────
 
@@ -219,6 +244,8 @@ SEGMENT_PLAYBOOK = {
     ),
 }
 
+SEGMENT_PLAYBOOK["youth-sports"] = campaigns.YOUTH_SPORTS_SEGMENT
+
 # Coarse segment aliases seen in TAGS. The importer writes "healthcare|skilled-nursing|CA|..."
 # so the specific token wins; the bare "healthcare"/"childcare" token is the fallback.
 SEGMENT_ALIASES = {
@@ -291,6 +318,7 @@ SEGMENT_SHORT_COURSE = {
     "school-age": "child CPR and First Aid",
     "school": "staff CPR/AED and First Aid",
     "camp": "staff CPR/AED and First Aid",
+    "youth-sports": "coach CPR/AED certification",
 }
 
 
@@ -704,6 +732,81 @@ def fetch_followups(svc, state, needed):
             "touch": int(c["touches"]) + 1,
         })
     log.info(f"  Follow-up scan (rows {ROW_RANGE_START}-{scan_end - 1}): {len(out)} due for next touch")
+
+    # The campaign block sits outside the partition, so it gets its own pass.
+    if CAMPAIGN_ROW_START is not None and len(out) < needed:
+        rows = _read_campaign(svc)
+        stopped = _campaign_stopped_orgs(rows)
+        n0 = len(out)
+        for c in rows:
+            if len(out) >= needed:
+                break
+            if c["do_not_contact"].lower() in ("yes", "true", "1", "y"):
+                continue
+            if _org_key(c) in stopped or not _due_for_followup(c, today):
+                continue
+            out.append({**_contact_from_row(c), "touch": int(c["touches"]) + 1})
+        log.info(f"  Campaign follow-ups: {len(out) - n0} due "
+                 f"({len(stopped)} orgs stopped after someone there answered)")
+    return out
+
+
+def _org_key(c):
+    return (c.get("company") or "").strip().lower()
+
+
+def _contact_from_row(c):
+    return {
+        "row": c["row"],
+        "email": c["email"],
+        "firstName": normalize_name(c["first_name"]),
+        "lastName": normalize_name(c["last_name"]),
+        "firstNameRaw": c["first_name"],
+        "lastNameRaw": c["last_name"],
+        "company": c["company"],
+        "tags": c["tags"],
+        "sourceList": c["source_list"],
+        "is_role": is_role_address(c["email"]),
+    }
+
+
+def _read_campaign(svc):
+    return sheets_db.read_range(svc, SPREADSHEET_ID, CAMPAIGN_ROW_START, CAMPAIGN_ROW_END)
+
+
+def _campaign_stopped_orgs(rows):
+    """Orgs where anyone has replied, opted out or turned out to be a customer. A league
+    board is five volunteers who talk to each other: once one of them has answered, the
+    rest should stop hearing from us."""
+    return {_org_key(c) for c in rows if c.get("reply_status") in CAMPAIGN_ORG_STOP}
+
+
+def fetch_campaign_contacts(svc, needed):
+    """New (touch-1) contacts from the campaign block, at most one per org per day — so a
+    board doesn't get the same note in five inboxes on the same morning. Rows are in
+    priority order (decision makers first), so each org's first pick is its best contact."""
+    if CAMPAIGN_ROW_START is None or needed <= 0:
+        return []
+    today = today_str()
+    if not CAMPAIGN_START_DATE or today < CAMPAIGN_START_DATE:
+        log.info(f"  Campaign not started (starts {CAMPAIGN_START_DATE or 'unset'})")
+        return []
+    rows = _read_campaign(svc)
+    stopped = _campaign_stopped_orgs(rows)
+    used = {_org_key(c) for c in rows if (c.get("date_sent") or "")[:10] == today}
+    out = []
+    for c in rows:
+        if len(out) >= needed:
+            break
+        if not sheets_db.is_eligible(c) or c["email"] in PLACEHOLDER_ADDRESSES:
+            continue
+        org = _org_key(c)
+        if org in stopped or org in used:
+            continue
+        used.add(org)
+        out.append({**_contact_from_row(c), "touch": 1, "campaign": True})
+    remaining = sum(1 for c in rows if sheets_db.is_eligible(c) and _org_key(c) not in stopped)
+    log.info(f"  Campaign: {len(out)} new today, {remaining} not yet contacted")
     return out
 
 # ─── HubSpot ──────────────────────────────────────────────────────────────────
@@ -945,6 +1048,24 @@ def _fallback_result(contact):
 
 _MEETING_LINK_RE = re.compile(r"meeting link", re.IGNORECASE)
 
+def build_campaign_bodies(body, footer):
+    """Fixed campaign copy: the body, the campaign's signature, then a small footer with
+    the postal address and the reply-"no" opt-out. The words "meeting link" become the
+    scheduler link exactly as in generated mail."""
+    has_link = bool(MANAE_CALENDAR_LINK and _MEETING_LINK_RE.search(body))
+    plain = body.rstrip()
+    if has_link:
+        plain += f"\n\n{MANAE_CALENDAR_LINK}"
+    plain += f"\n\n{campaigns.SIGNATURE}\n\n--\n{campaigns.POSTAL}\n{footer}"
+    marked = (_MEETING_LINK_RE.sub(lambda m: f"[{m.group(0)}]({MANAE_CALENDAR_LINK})", body, count=1)
+              if has_link else body)
+    foot = ('<p style="margin:20px 0 0;font-size:12px;color:#777">'
+            f'{html_escape(campaigns.POSTAL)}<br>{html_escape(footer)}</p>')
+    html = wrapper_html(paras_html(marked) + f'<p style="margin:16px 0 0">'
+                        f'{html_escape(campaigns.SIGNATURE).replace(chr(10), "<br>")}</p>' + foot)
+    return plain, html
+
+
 def build_outreach_bodies(body):
     """
     Given a plaintext email body that contains the phrase "meeting link",
@@ -1015,6 +1136,14 @@ def generate_emails_batch(contacts):
         "  - Schools and school-age programs: staff CPR/AED and First Aid, timed to the "
         "school year; coaches and athletic staff for AED.\n"
         "  - Camps: certifying counselors before the season.\n"
+        "  - Youth sports leagues: coach CPR/AED certification under California's AB 310 "
+        "(deadline January 1, 2027) plus help writing the league's cardiac emergency "
+        "response plan. Name AB 310 and the deadline; keep it neighborly, since these are "
+        "volunteer boards. Never call it BLS.\n"
+        "  - Youth sports leagues: coach CPR/AED certification under California's AB 310 "
+        "(deadline January 1, 2027) plus help writing the league's cardiac emergency "
+        "response plan. Name AB 310 and the deadline; keep it neighborly, since these are "
+        "volunteer boards. Never call it BLS.\n"
         "  - If orgType is unknown, stay general (CPR/AED and First Aid) and do not guess "
         "at a specialty.\n"
         "Use the terminology naturally in ONE place — do not stack credentials or list "
@@ -2006,6 +2135,12 @@ def classify_reply(sender, subject, body_text):
     ]
     if any(k in subject_l for k in unsub_phrases) or any(k in body_l[:400] for k in unsub_phrases):
         return "unsubscribe"
+    # The AB 310 footers say 'reply "no" and we won't reach out again', so a bare "no" is
+    # an opt-out — judged on the first line only, never the quoted original below it.
+    first_line = next((l for l in body_l.splitlines() if l.strip()), "")
+    if re.sub(r"[^a-z ]", "", first_line).strip() in {
+            "no", "no thanks", "no thank you", "nope", "not interested"}:
+        return "unsubscribe"
 
     return "genuine"
 
@@ -2489,6 +2624,9 @@ def run_daily(dry_run=False, limit=None):
         # 1 — Source: follow-ups first (warmer + time-sensitive), then new contacts
         #     from the cursor to fill the rest of today's cap. Each carries a `touch`.
         followups = fetch_followups(svc, state, remaining)
+        # Campaign rows next: time-boxed (AB 310's deadline), so they go ahead of the list.
+        campaign_new = fetch_campaign_contacts(svc, remaining - len(followups))
+        followups = followups + campaign_new
         new_needed = remaining - len(followups)
         new_contacts = []
         new_cursor = int(state.get("sheet_cursor", 2) or 2)
@@ -2506,7 +2644,8 @@ def run_daily(dry_run=False, limit=None):
             if already_sent > 0:
                 send_eod_report(already_sent, 0, [], [], skipped_roles, dry_run, state=state)
             return
-        log.info(f"Queued {len(followups)} follow-ups + {len(new_contacts)} new = {len(candidates)}")
+        log.info(f"Queued {len(followups) - len(campaign_new)} follow-ups + {len(campaign_new)} "
+                 f"campaign + {len(new_contacts)} new = {len(candidates)}")
 
         # 2 — HubSpot cross-check: peel existing customers off to Manae. On an
         # unresolved lookup (API error after retries) SKIP rather than risk emailing a
@@ -2518,7 +2657,8 @@ def run_daily(dry_run=False, limit=None):
         for c in candidates:
             hs = check_hubspot(c)
             if hs.get("error"):
-                if c.get("touch", 1) == 1:
+                # Campaign rows sit outside the cursor's range; they just stay eligible.
+                if c.get("touch", 1) == 1 and not c.get("campaign"):
                     skipped_new_rows.append(c["row"])
                 continue
             if hs.get("isCustomer"):
@@ -2540,14 +2680,25 @@ def run_daily(dry_run=False, limit=None):
         # 3 — Generate emails in batches (each carries its touch number 1-4)
         to_send = prospects
         log.info(f"Generating {len(to_send)} emails in batches of {GENERATION_BATCH_SIZE}...")
-        generated = []
-        for start in range(0, len(to_send), GENERATION_BATCH_SIZE):
-            batch = to_send[start:start + GENERATION_BATCH_SIZE]
+        # A campaign's touch 1 is Chris's fixed copy; everything else is generated.
+        generated = [None] * len(to_send)
+        llm_idx = []
+        for i, c in enumerate(to_send):
+            if c.get("touch", 1) == 1 and campaigns.is_campaign_row(c.get("tags")):
+                subject, body, footer = campaigns.render_ab310(c)
+                generated[i] = {"subject": subject, "body": body, "footer": footer}
+            else:
+                llm_idx.append(i)
+        for start in range(0, len(llm_idx), GENERATION_BATCH_SIZE):
+            idx = llm_idx[start:start + GENERATION_BATCH_SIZE]
+            batch = [to_send[i] for i in idx]
             try:
-                generated.extend(generate_emails_batch(batch))
+                results = generate_emails_batch(batch)
             except Exception as e:
                 log.warning(f"  Batch generation failed: {e} — using fallbacks")
-                generated.extend([_fallback_result(c) for c in batch])
+                results = [_fallback_result(c) for c in batch]
+            for i, r in zip(idx, results):
+                generated[i] = r
 
         # 4 — Send and write the result back to each row
         log.info(f"Sending {len(to_send)} emails...")
@@ -2578,7 +2729,10 @@ def run_daily(dry_run=False, limit=None):
                          + "\n  ".join((body or "").strip().splitlines()[:8]))
                 continue
 
-            plain_body, html_body = build_outreach_bodies(body)
+            if ed.get("footer"):
+                plain_body, html_body = build_campaign_bodies(body, ed["footer"])
+            else:
+                plain_body, html_body = build_outreach_bodies(body)
             result = send_email(email, subject, plain_body, html=html_body)
             if result.get("success"):
                 today_sent    += 1
@@ -2872,8 +3026,7 @@ def run_report(dry_run=False):
     # pre-agent Mailchimp legacy (statuses/dates that predate the agent), so lifetime metrics
     # reflect only what this agent actually did.
     snap = {e: v for e, v in snap.items()
-            if v.get("row", 0) >= ROW_RANGE_START
-            and (ROW_RANGE_END is None or v.get("row", 0) <= ROW_RANGE_END)
+            if in_my_rows(v.get("row", 0))
             and (v.get("date_sent", "") or "")[:10] >= AGENT_LAUNCH_DATE}
     counts = Counter(v["reply_status"] for v in snap.values() if v.get("reply_status"))
 

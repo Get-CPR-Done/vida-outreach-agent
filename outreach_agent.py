@@ -120,6 +120,18 @@ if _campaign_rows:
 else:
     CAMPAIGN_ROW_START = CAMPAIGN_ROW_END = None
 CAMPAIGN_START_DATE = (os.environ.get("CAMPAIGN_START_DATE", "") or "").strip()
+# The campaign sends ON TOP of BATCH_SIZE, not out of it (Chris, 2026-10-02: 200 -> 500),
+# so the regular list keeps its full 200. Its own follow-ups count against this cap too.
+# Day one is half: the 8/17 collapse came from a one-step jump, so even a verified list
+# gets a ramp.
+CAMPAIGN_DAILY_CAP = int(os.environ.get("CAMPAIGN_DAILY_CAP", "300") or 300)
+CAMPAIGN_FIRST_DAY_CAP = 150
+# Brake: once this many campaign sends have gone out in a run, a hard-bounce rate above
+# this pauses the campaign (and only the campaign) until someone deletes
+# "campaign_paused" from state.json. Providers start penalising around 2%; 5% on a
+# ZeroBounce-verified list means something is wrong, not unlucky.
+CAMPAIGN_BRAKE_MIN_SENDS = 40
+CAMPAIGN_BRAKE_BOUNCE_RATE = 0.05
 # Statuses that mean the org has answered us — stop emailing everyone else there.
 CAMPAIGN_ORG_STOP = {"Replied", "Potential SQL", "SQL", "Unsubscribed", "Customer"}
 
@@ -733,21 +745,6 @@ def fetch_followups(svc, state, needed):
         })
     log.info(f"  Follow-up scan (rows {ROW_RANGE_START}-{scan_end - 1}): {len(out)} due for next touch")
 
-    # The campaign block sits outside the partition, so it gets its own pass.
-    if CAMPAIGN_ROW_START is not None and len(out) < needed:
-        rows = _read_campaign(svc)
-        stopped = _campaign_stopped_orgs(rows)
-        n0 = len(out)
-        for c in rows:
-            if len(out) >= needed:
-                break
-            if c["do_not_contact"].lower() in ("yes", "true", "1", "y"):
-                continue
-            if _org_key(c) in stopped or not _due_for_followup(c, today):
-                continue
-            out.append({**_contact_from_row(c), "touch": int(c["touches"]) + 1})
-        log.info(f"  Campaign follow-ups: {len(out) - n0} due "
-                 f"({len(stopped)} orgs stopped after someone there answered)")
     return out
 
 
@@ -779,6 +776,37 @@ def _campaign_stopped_orgs(rows):
     board is five volunteers who talk to each other: once one of them has answered, the
     rest should stop hearing from us."""
     return {_org_key(c) for c in rows if c.get("reply_status") in CAMPAIGN_ORG_STOP}
+
+
+def campaign_cap_today(state):
+    if CAMPAIGN_ROW_START is None or not CAMPAIGN_START_DATE:
+        return 0
+    today = today_str()
+    if today < CAMPAIGN_START_DATE or state.get("campaign_paused"):
+        return 0
+    return CAMPAIGN_FIRST_DAY_CAP if today == CAMPAIGN_START_DATE else CAMPAIGN_DAILY_CAP
+
+
+def fetch_campaign_followups(svc, needed):
+    """Campaign rows due their next touch. The block sits outside the partition, so the
+    regular follow-up scan never sees it."""
+    if CAMPAIGN_ROW_START is None or needed <= 0:
+        return []
+    today = pacific_today()
+    rows = _read_campaign(svc)
+    stopped = _campaign_stopped_orgs(rows)
+    out = []
+    for c in rows:
+        if len(out) >= needed:
+            break
+        if c["do_not_contact"].lower() in ("yes", "true", "1", "y"):
+            continue
+        if _org_key(c) in stopped or not _due_for_followup(c, today):
+            continue
+        out.append({**_contact_from_row(c), "touch": int(c["touches"]) + 1, "campaign": True})
+    log.info(f"  Campaign follow-ups: {len(out)} due "
+             f"({len(stopped)} orgs stopped after someone there answered)")
+    return out
 
 
 def fetch_campaign_contacts(svc, needed):
@@ -1603,6 +1631,14 @@ TASK_DUE_MINUTES = int(os.environ.get("TASK_DUE_MINUTES", "30") or 30)
 # restore it without a deploy.
 HANDOFF_EMAIL = (os.environ.get("HANDOFF_EMAIL", "1") or "1").strip() not in ("0", "false", "no")
 
+# AB 310 campaign leads go to Jacob Swisher, not Manae (Chris, 2026-10-02). He has no seat
+# in GCD's HubSpot, so he works them from the threaded handoff email; the GCD record is
+# still written (contact, logged reply, note) but with no owner and no task — a task on
+# Manae's queue would read as hers, and the 12h stall escalation watches HubSpot activity
+# that Gmail replies never create, so it would fire on every one of his leads.
+CAMPAIGN_LEAD_EMAIL = os.environ.get("CAMPAIGN_LEAD_EMAIL") or "jacobs@joffeemergencyservices.com"
+CAMPAIGN_LEAD_NAME  = os.environ.get("CAMPAIGN_LEAD_NAME") or "Jacob"
+
 SLACK_BOT_TOKEN    = os.environ.get("SLACK_BOT_TOKEN", "")
 SLACK_LEADS_CHANNEL = os.environ.get("SLACK_LEADS_CHANNEL") or "C0804PH0W0Z"   # #GCD (private)
 STALL_HOURS = int(os.environ.get("STALL_HOURS", "12") or 12)
@@ -1994,7 +2030,7 @@ def _extract_phone(text):
 
 def hubspot_upsert_sql(email, first="", last="", company="", phone="",
                        stage="salesqualifiedlead", why="", task_priority="HIGH",
-                       reply_text="", reply_subject=""):
+                       reply_text="", reply_subject="", owned=True):
     """Create or update a HubSpot contact as a lead. Returns the contact id (for a record
     link) or '' on failure. Needs contacts write scope.
 
@@ -2004,13 +2040,14 @@ def hubspot_upsert_sql(email, first="", last="", company="", phone="",
     label — 27 of the first 46 "SQLs" had no buying signal in them (Chris, 2026-08-13).
 
     Only true SQLs get an owner task; an MQL still gets the owner so it has a home.
+    owned=False (campaign leads worked outside this portal): no owner, no task.
     """
     headers = {"Authorization": f"Bearer {HUBSPOT_TOKEN}", "Content-Type": "application/json"}
     # Lifecycle stage per the tier above, Lead Status = NEW. Original Traffic Source =
     # AI Referral (stamped only when GCD's HubSpot has that writable property/option —
     # resolved by label).
     props = {"email": email, "lifecyclestage": stage, "hs_lead_status": "NEW"}
-    owner_id = _resolve_owner_id()
+    owner_id = _resolve_owner_id() if owned else ""
     if owner_id:
         props["hubspot_owner_id"] = owner_id
     if first:   props["firstname"] = first
@@ -2039,9 +2076,10 @@ def hubspot_upsert_sql(email, first="", last="", company="", phone="",
             hubspot_log_reply_email(cid, reply_text, reply_subject, email,
                                     from_name=(first + " " + last).strip())
             hubspot_log_reply_note(cid, reply_text, why)
-            hubspot_create_followup_task(cid, owner_id,
-                                         (first + " " + last).strip() or company, why,
-                                         priority=task_priority, reply_text=reply_text)
+            if owned:
+                hubspot_create_followup_task(cid, owner_id,
+                                             (first + " " + last).strip() or company, why,
+                                             priority=task_priority, reply_text=reply_text)
             return cid
         st, cdata = http_post_raw("https://api.hubapi.com/crm/v3/objects/contacts", headers,
                                   {"properties": props})
@@ -2052,9 +2090,10 @@ def hubspot_upsert_sql(email, first="", last="", company="", phone="",
             hubspot_log_reply_email(cid, reply_text, reply_subject, email,
                                     from_name=(first + " " + last).strip())
             hubspot_log_reply_note(cid, reply_text, why)
-            hubspot_create_followup_task(cid, owner_id,
-                                         (first + " " + last).strip() or company, why,
-                                         priority=task_priority, reply_text=reply_text)
+            if owned:
+                hubspot_create_followup_task(cid, owner_id,
+                                             (first + " " + last).strip() or company, why,
+                                             priority=task_priority, reply_text=reply_text)
             return cid
         log.info(f"    HubSpot: create FAILED ({st}) {redact_email(email)}")
         return ""
@@ -2310,6 +2349,11 @@ def check_replies(state, dry_run=False):
                     last  = (sender_name.split()[-1] if len(sender_name.split()) > 1 else "")
                     company = ""
                     row = email_index.get(sender_email)
+                    # AB 310 league reply → Jacob. The subject check catches a board member
+                    # answering from a different address than the one we emailed.
+                    campaign_lead = in_campaign_rows(row or 0) or "ab 310" in (subject or "").lower()
+                    rep_email = CAMPAIGN_LEAD_EMAIL if campaign_lead else MANAE_EMAIL
+                    rep_name  = CAMPAIGN_LEAD_NAME if campaign_lead else "Manae"
                     if row and svc:
                         try:
                             sf, sl = sheets_db.read_name(svc, SPREADSHEET_ID, row)
@@ -2363,7 +2407,8 @@ def check_replies(state, dry_run=False):
                                                           reply_text=body_text,
                                                           reply_subject=subject,
                                                           task_priority=("HIGH" if is_sql
-                                                                         else "MEDIUM"))
+                                                                         else "MEDIUM"),
+                                                          owned=not campaign_lead)
                             hs_link  = _hubspot_link(cid)
                             hs_added = bool(cid)   # only true when the write actually succeeded
                             if is_sql:
@@ -2374,12 +2419,16 @@ def check_replies(state, dry_run=False):
                                     + (f" · {company}" if company else "")
                                     + f"\n_{reason}_\n{sender_email}"
                                     + (f" · <{hs_link}|HubSpot>" if hs_link else "")
-                                    + f"\nOwner: {LEAD_OWNER_EMAIL} · task due in "
-                                    f"{TASK_DUE_MINUTES} min · via {SENDING_NAME}")
+                                    + (f"\nOwner: {CAMPAIGN_LEAD_EMAIL} (AB 310 youth sports, "
+                                       f"handoff email) · via {SENDING_NAME}" if campaign_lead else
+                                       f"\nOwner: {LEAD_OWNER_EMAIL} · task due in "
+                                       f"{TASK_DUE_MINUTES} min · via {SENDING_NAME}"))
                                 # Watch it for follow-through; escalates after STALL_HOURS.
-                                _track_open_lead(state, sender_email, cid,
-                                                 (first + " " + last).strip() or company,
-                                                 company, reason)
+                                # Not for campaign leads: no HubSpot task to watch.
+                                if not campaign_lead:
+                                    _track_open_lead(state, sender_email, cid,
+                                                     (first + " " + last).strip() or company,
+                                                     company, reason)
                             else:
                                 _bump(state, "daily_potential_count")
                         mark_row(sender_email, reply_status=label,
@@ -2426,7 +2475,7 @@ def check_replies(state, dry_run=False):
                         # Only mention the HubSpot add when the write actually landed — never
                         # claim it happened if the write failed.
                         hs_line = ""
-                        if hs_added:
+                        if hs_added and not campaign_lead:   # Jacob has no GCD seat to open it
                             hs_line = (
                                 f"I've added {them} to HubSpot as a lead"
                                 + (f" — {hs_link}" if hs_link else ".") + "\n\n"
@@ -2438,6 +2487,15 @@ def check_replies(state, dry_run=False):
                             (f"FYI: {full_name or company or 'New'} — warm reply, no ask yet")
                         )
                         opener = (
+                            f"{who} replied to our AB 310 youth sports outreach and asked "
+                            f"something a quote or a date would answer — worth a reply "
+                            f"today. Hit Reply and it goes straight to them.\n\n"
+                            f"What they asked: {reason}\n\n"
+                            if is_sql and campaign_lead else
+                            f"{who} replied warmly to our AB 310 youth sports outreach but "
+                            f"hasn't asked for anything specific yet. Hit Reply and it goes "
+                            f"straight to them.\n\n"
+                            if campaign_lead else
                             f"{who} asked us something a quote or a date would answer — "
                             f"worth a reply today.\n\n"
                             f"What they asked: {reason}\n\n"
@@ -2451,7 +2509,7 @@ def check_replies(state, dry_run=False):
                             f"marketing-qualified lead.\n\n"
                         )
                         fwd_body = (
-                            f"Hi Manae,\n\n"
+                            f"Hi {rep_name},\n\n"
                             f"{opener}"
                             f"{contact_block}{hs_line}{quoted}"
                             f"Thanks!\n{SENDER_FIRST}"
@@ -2459,7 +2517,7 @@ def check_replies(state, dry_run=False):
                     else:
                         fwd_subject = f"{full_name or sender} replied — worth a look"
                         fwd_body = (
-                            f"Hi Manae,\n\n"
+                            f"Hi {rep_name},\n\n"
                             f"{who} just replied to my outreach — no clear booking intent yet, "
                             f"but wanted to flag it for you.\n\n{contact_block}{quoted}"
                             f"Thanks!\n{SENDER_FIRST}"
@@ -2471,10 +2529,10 @@ def check_replies(state, dry_run=False):
                         _detail.append(f"Phone: {html_escape(phone)}")
                     if company:
                         _detail.append(f"Company: {html_escape(company)}")
-                    if hs_link:
+                    if hs_link and not campaign_lead:
                         _detail.append(link_html(hs_link, "Open the HubSpot record"))
                     fwd_html = wrapper_html(
-                        paras_html(f"Hi Manae,\n\n{opener.strip()}")
+                        paras_html(f"Hi {rep_name},\n\n{opener.strip()}")
                         + (f'<p style="margin:0 0 12px">{" &nbsp;·&nbsp; ".join(_detail)}</p>'
                            if _detail else "")
                         + '<p style="margin:0 0 6px;color:#666;font-size:13px">The exchange:</p>'
@@ -2496,7 +2554,7 @@ def check_replies(state, dry_run=False):
                                 # it; Reply-To is the prospect so Reply reaches THEM, not us.
                                 _thread_subj = (subject if subject.lower().startswith("re:")
                                                 else f"Re: {subject}") if subject else fwd_subject
-                                send_email(MANAE_EMAIL, _thread_subj, fwd_body, html=fwd_html,
+                                send_email(rep_email, _thread_subj, fwd_body, html=fwd_html,
                                            reply_to=sender_email,
                                            in_reply_to=reply_msg_id or None,
                                            references=(reply_refs + " " + reply_msg_id).strip()
@@ -2604,17 +2662,27 @@ def run_daily(dry_run=False, limit=None):
         state["last_daily_run"] = today
         save_state(state)
 
-    cap = BATCH_SIZE if limit is None else min(BATCH_SIZE, limit)
-    if already_sent >= cap:
+    # Two budgets: the regular list's BATCH_SIZE and the campaign's own cap on top of it.
+    camp_counts = state.setdefault("daily_campaign_sent", {})
+    camp_sent   = camp_counts.get(today, 0)
+    reg_cap     = BATCH_SIZE if limit is None else min(BATCH_SIZE, limit)
+    camp_cap    = campaign_cap_today(state)
+    if limit is not None:
+        camp_cap = min(camp_cap, limit)
+    cap = reg_cap + camp_cap
+    reg_remaining  = max(0, reg_cap - (already_sent - camp_sent))
+    camp_remaining = max(0, camp_cap - camp_sent)
+    if reg_remaining == 0 and camp_remaining == 0:
         log.info(f"Daily cap reached ({already_sent}/{cap}). Exiting.")
         return
 
-    remaining      = cap - already_sent
+    remaining      = reg_remaining
     contacted      = {e.lower() for e in state.get("contacted_emails", [])}
     do_not_contact = {e.lower() for e in state.get("do_not_contact", [])}
 
     today_sent    = already_sent
     sent_this_run = 0
+    camp_tries = camp_bounces = 0
     today_bounces = []
 
     try:
@@ -2623,11 +2691,12 @@ def run_daily(dry_run=False, limit=None):
 
         # 1 — Source: follow-ups first (warmer + time-sensitive), then new contacts
         #     from the cursor to fill the rest of today's cap. Each carries a `touch`.
-        followups = fetch_followups(svc, state, remaining)
-        # Campaign rows next: time-boxed (AB 310's deadline), so they go ahead of the list.
-        campaign_new = fetch_campaign_contacts(svc, remaining - len(followups))
-        followups = followups + campaign_new
+        followups = fetch_followups(svc, state, remaining) if remaining else []
+        # The campaign fills its own budget: follow-ups first, then new league contacts.
+        camp_fu = fetch_campaign_followups(svc, camp_remaining)
+        campaign_new = fetch_campaign_contacts(svc, camp_remaining - len(camp_fu))
         new_needed = remaining - len(followups)
+        followups = followups + camp_fu + campaign_new
         new_contacts = []
         new_cursor = int(state.get("sheet_cursor", 2) or 2)
         skipped_roles = []
@@ -2644,8 +2713,10 @@ def run_daily(dry_run=False, limit=None):
             if already_sent > 0:
                 send_eod_report(already_sent, 0, [], [], skipped_roles, dry_run, state=state)
             return
-        log.info(f"Queued {len(followups) - len(campaign_new)} follow-ups + {len(campaign_new)} "
-                 f"campaign + {len(new_contacts)} new = {len(candidates)}")
+        log.info(f"Queued {len(followups) - len(camp_fu) - len(campaign_new)} follow-ups + "
+                 f"{len(camp_fu)} campaign follow-ups + {len(campaign_new)} campaign new + "
+                 f"{len(new_contacts)} new = {len(candidates)} "
+                 f"(regular cap {reg_cap}, campaign cap {camp_cap})")
 
         # 2 — HubSpot cross-check: peel existing customers off to Manae. On an
         # unresolved lookup (API error after retries) SKIP rather than risk emailing a
@@ -2717,6 +2788,9 @@ def run_daily(dry_run=False, limit=None):
             if clean_last and clean_last != contact.get("lastNameRaw", ""):
                 name_updates["last"] = clean_last
 
+            is_camp = bool(contact.get("campaign"))
+            if is_camp and state.get("campaign_paused"):
+                continue
             log.info(f"Sending {i+1}/{len(to_send)} (row {row}, touch {touch}): {subject}")
 
             if dry_run:
@@ -2743,6 +2817,9 @@ def run_daily(dry_run=False, limit=None):
                     touches=touch, last_result=f"sent (touch {touch})", **name_updates)
                 if touch == 1:
                     _bump(state, "daily_new_count")     # a newly-reached person
+                if is_camp:
+                    camp_counts[today] = camp_counts.get(today, 0) + 1
+                    camp_tries += 1
                 log.info(f"  ✓ Sent touch {touch} ({today_sent}/{cap} today)")
             elif result.get("hard_bounce"):
                 err = str(result.get("error", "unknown"))
@@ -2755,6 +2832,20 @@ def run_daily(dry_run=False, limit=None):
                     do_not_contact="yes", touches=touch,
                     last_result=f"hard bounce: {err}"[:250], **name_updates)
                 _bump(state, "daily_bounce_count")
+                if is_camp:
+                    camp_tries += 1
+                    camp_bounces += 1
+                    if (camp_tries >= CAMPAIGN_BRAKE_MIN_SENDS
+                            and camp_bounces / camp_tries > CAMPAIGN_BRAKE_BOUNCE_RATE):
+                        state["campaign_paused"] = (
+                            f"{today}: {camp_bounces}/{camp_tries} campaign sends hard-bounced")
+                        log.warning(f"  Campaign PAUSED — {state['campaign_paused']}")
+                        notify_chris(
+                            f"AB 310 campaign paused: {camp_bounces} of {camp_tries} sends "
+                            f"bounced today",
+                            "Vida stopped the youth sports sends to protect getcprdone.com; "
+                            "the regular list keeps going. To resume, delete "
+                            "\"campaign_paused\" from state.json in the vida-outreach-agent repo.")
             else:
                 err = result.get("error", "unknown")
                 log.error(f"  ✗ Failed (row {row}): {err}")

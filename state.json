@@ -158,7 +158,7 @@
     "2026-10-02": 0,
     "2026-10-03": 0,
     "2026-10-04": 0,
-    "2026-10-05": 0
+    "2026-10-05": 4
   },
   "do_not_contact": [],
   "bounce_replacement_queue": [],
@@ -370,7 +370,11 @@
     "finkejones1@gmail.com": "2026-09-29",
     "noahsarkdaycare2018@gmail.com": "2026-09-30",
     "deidrajm82@gmail.com": "2026-09-30",
-    "ray.nikki@yahoo.com": "2026-09-30"
+    "ray.nikki@yahoo.com": "2026-09-30",
+    "jeff@marketsocal.com": "2026-10-05",
+    "danjeffries@yahoo.com": "2026-10-05",
+    "president@vallbaseball.com": "2026-10-05",
+    "santana313@yahoo.com": "2026-10-05"
   },
   "open_leads": [
     {
@@ -386,5 +390,6 @@
   ],
   "daily_campaign_sent": {
     "2026-10-05": 150
-  }
+  },
+  "reply_rescan_done": "2026-10-05T03:07:00Z"
 }

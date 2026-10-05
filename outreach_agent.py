@@ -2241,6 +2241,29 @@ def check_replies(state, dry_run=False):
         mail.login(gmail_user, gmail_pass)
         mail.select("INBOX")
 
+        # One-time catch-up (repo var REPLY_RESCAN_AFTER, ISO UTC): re-open inbox mail that
+        # arrived after that moment but was read without being handled — e.g. 2026-10-05,
+        # when triage failed (no API credit) and the handoff then crashed, leaving four real
+        # replies read, unhandled, and invisible to the UNSEEN search below. Runs once per
+        # value; anything already handled has been archived out of INBOX, so it isn't touched.
+        rescan = (os.environ.get("REPLY_RESCAN_AFTER", "") or "").strip()
+        if rescan and state.get("reply_rescan_done") != rescan:
+            after = datetime.fromisoformat(rescan.replace("Z", "+00:00")).timestamp()
+            since = datetime.fromtimestamp(after - 86400, timezone.utc).strftime("%d-%b-%Y")
+            _, seen = mail.search(None, "SEEN", "SINCE", since)
+            reopened = 0
+            for smid in (seen[0].split() if seen and seen[0] else []):
+                _, meta = mail.fetch(smid, "(INTERNALDATE)")
+                tt = imaplib.Internaldate2tuple(meta[0] if isinstance(meta[0], bytes) else meta[0][0])
+                if tt and time.mktime(tt) > after:
+                    if not dry_run:
+                        mail.store(smid, "-FLAGS", "\\Seen")
+                    reopened += 1
+            log.info(f"  Rescan after {rescan}: re-opened {reopened} read-but-unhandled message(s)")
+            if not dry_run:
+                state["reply_rescan_done"] = rescan
+                save_state(state)
+
         # Search ALL unread — SMTP sends don't give us real Gmail thread IDs.
         _, msg_ids = mail.search(None, "UNSEEN")
         all_mids = msg_ids[0].split() if msg_ids[0] else []
@@ -2516,10 +2539,14 @@ def check_replies(state, dry_run=False):
                         )
                     else:
                         fwd_subject = f"{full_name or sender} replied — worth a look"
+                        # The HTML twin below reads `opener`; this branch never set it, so
+                        # every not-a-lead reply (and every reply when triage itself failed)
+                        # crashed before its handoff went out (found 2026-10-05).
+                        opener = (f"{who} just replied to my outreach — no clear booking "
+                                  f"intent yet, but wanted to flag it for you.\n\n")
                         fwd_body = (
                             f"Hi {rep_name},\n\n"
-                            f"{who} just replied to my outreach — no clear booking intent yet, "
-                            f"but wanted to flag it for you.\n\n{contact_block}{quoted}"
+                            f"{opener}{contact_block}{quoted}"
                             f"Thanks!\n{SENDER_FIRST}"
                         )
                     # HTML twin of the note: the prospect's words in an indented block, the

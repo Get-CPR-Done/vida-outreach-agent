@@ -2249,16 +2249,21 @@ def check_replies(state, dry_run=False):
         # when triage failed (no API credit) and the handoff then crashed, leaving four real
         # replies read, unhandled, and invisible to the UNSEEN search below. Runs once per
         # value; anything already handled has been archived out of INBOX, so it isn't touched.
+        # An optional end ("<after>/<before>") keeps a rescan off mail that WAS handled
+        # properly after the window, e.g. 2026-10-06's SQL that arrived once credit was back.
         rescan = (os.environ.get("REPLY_RESCAN_AFTER", "") or "").strip()
         if rescan and state.get("reply_rescan_done") != rescan:
-            after = datetime.fromisoformat(rescan.replace("Z", "+00:00")).timestamp()
+            _a, _, _b = rescan.partition("/")
+            after = datetime.fromisoformat(_a.replace("Z", "+00:00")).timestamp()
+            before = (datetime.fromisoformat(_b.replace("Z", "+00:00")).timestamp()
+                      if _b else float("inf"))
             since = datetime.fromtimestamp(after - 86400, timezone.utc).strftime("%d-%b-%Y")
             _, seen = mail.search(None, "SEEN", "SINCE", since)
             reopened = 0
             for smid in (seen[0].split() if seen and seen[0] else []):
                 _, meta = mail.fetch(smid, "(INTERNALDATE)")
                 tt = imaplib.Internaldate2tuple(meta[0] if isinstance(meta[0], bytes) else meta[0][0])
-                if tt and time.mktime(tt) > after:
+                if tt and after < time.mktime(tt) < before:
                     if not dry_run:
                         mail.store(smid, "-FLAGS", "\\Seen")
                     reopened += 1

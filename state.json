@@ -159,7 +159,8 @@
     "2026-10-02": 0,
     "2026-10-03": 0,
     "2026-10-04": 0,
-    "2026-10-05": 4
+    "2026-10-05": 4,
+    "2026-10-06": 8
   },
   "do_not_contact": [],
   "bounce_replacement_queue": [],
@@ -246,7 +247,8 @@
     "2026-10-01": 2,
     "2026-10-02": 4,
     "2026-10-03": 3,
-    "2026-10-04": 2
+    "2026-10-04": 2,
+    "2026-10-06": 5
   },
   "daily_sql_count": {
     "2026-07-30": 4,
@@ -376,7 +378,15 @@
     "jeff@marketsocal.com": "2026-10-05",
     "danjeffries@yahoo.com": "2026-10-05",
     "president@vallbaseball.com": "2026-10-05",
-    "santana313@yahoo.com": "2026-10-05"
+    "santana313@yahoo.com": "2026-10-05",
+    "safety@ayso599.org": "2026-10-06",
+    "morgan174rc@gmail.com": "2026-10-06",
+    "president@visaliasoccer.com": "2026-10-06",
+    "dswetmore1@yahoo.com": "2026-10-06",
+    "rc@carlini.com": "2026-10-06",
+    "steve@ayso60.org": "2026-10-06",
+    "condorsclubacademysoccer@gmail.com": "2026-10-06",
+    "aysor21rc@gmail.com": "2026-10-06"
   },
   "open_leads": [
     {

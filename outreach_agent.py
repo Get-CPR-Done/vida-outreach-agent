@@ -1636,8 +1636,11 @@ HANDOFF_EMAIL = (os.environ.get("HANDOFF_EMAIL", "1") or "1").strip() not in ("0
 # still written (contact, logged reply, note) but with no owner and no task — a task on
 # Manae's queue would read as hers, and the 12h stall escalation watches HubSpot activity
 # that Gmail replies never create, so it would fire on every one of his leads.
-CAMPAIGN_LEAD_EMAIL = os.environ.get("CAMPAIGN_LEAD_EMAIL") or "jacobs@joffeemergencyservices.com"
-CAMPAIGN_LEAD_NAME  = os.environ.get("CAMPAIGN_LEAD_NAME") or "Jacob"
+# Back to Manae "for now" (Chris, 2026-10-06): with the default, AB 310 leads are ordinary
+# leads — owner, task, escalation. To route them to Jacob again set repo vars
+# CAMPAIGN_LEAD_EMAIL=jacobs@joffeemergencyservices.com and CAMPAIGN_LEAD_NAME=Jacob.
+CAMPAIGN_LEAD_EMAIL = os.environ.get("CAMPAIGN_LEAD_EMAIL") or MANAE_EMAIL
+CAMPAIGN_LEAD_NAME  = os.environ.get("CAMPAIGN_LEAD_NAME") or "Manae"
 
 SLACK_BOT_TOKEN    = os.environ.get("SLACK_BOT_TOKEN", "")
 SLACK_LEADS_CHANNEL = os.environ.get("SLACK_LEADS_CHANNEL") or "C0804PH0W0Z"   # #GCD (private)
@@ -2374,7 +2377,10 @@ def check_replies(state, dry_run=False):
                     row = email_index.get(sender_email)
                     # AB 310 league reply → Jacob. The subject check catches a board member
                     # answering from a different address than the one we emailed.
-                    campaign_lead = in_campaign_rows(row or 0) or "ab 310" in (subject or "").lower()
+                    # campaign_lead = an AB 310 reply routed to someone OUTSIDE GCD's HubSpot.
+                    # Routed to Manae, it's an ordinary lead and takes the normal path.
+                    campaign_lead = ((in_campaign_rows(row or 0) or "ab 310" in (subject or "").lower())
+                                     and CAMPAIGN_LEAD_EMAIL.lower() != MANAE_EMAIL.lower())
                     rep_email = CAMPAIGN_LEAD_EMAIL if campaign_lead else MANAE_EMAIL
                     rep_name  = CAMPAIGN_LEAD_NAME if campaign_lead else "Manae"
                     if row and svc:

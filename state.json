@@ -160,7 +160,7 @@
     "2026-10-03": 0,
     "2026-10-04": 0,
     "2026-10-05": 4,
-    "2026-10-06": 9
+    "2026-10-06": 10
   },
   "do_not_contact": [],
   "bounce_replacement_queue": [],
@@ -273,7 +273,7 @@
     "2026-09-14": 1,
     "2026-09-28": 1,
     "2026-09-30": 1,
-    "2026-10-06": 1
+    "2026-10-06": 2
   },
   "daily_unsub_count": {
     "2026-07-30": 3,
@@ -388,7 +388,8 @@
     "steve@ayso60.org": "2026-10-06",
     "condorsclubacademysoccer@gmail.com": "2026-10-06",
     "aysor21rc@gmail.com": "2026-10-06",
-    "michaeldusan@yahoo.com": "2026-10-06"
+    "michaeldusan@yahoo.com": "2026-10-06",
+    "vpbaseballops@nwllbaseball.com": "2026-10-06"
   },
   "open_leads": [
     {
@@ -408,6 +409,16 @@
       "company": "Madera Youth Soccer League",
       "why": "Asks pricing and cost per coach; ready to move forward.",
       "handed_at": "2026-10-06T12:24:42-07:00",
+      "alerted": false,
+      "closed": false
+    },
+    {
+      "email": "vpbaseballops@nwllbaseball.com",
+      "cid": "253492129451",
+      "name": ", Baseball Operations",
+      "company": "Northwood Little League",
+      "why": "Requests quote for 54 managers, Spring 2027 training needed",
+      "handed_at": "2026-10-06T14:45:45-07:00",
       "alerted": false,
       "closed": false
     }

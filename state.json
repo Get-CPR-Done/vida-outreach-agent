@@ -64,7 +64,8 @@
     "2026-10-01": 200,
     "2026-10-02": 200,
     "2026-10-05": 350,
-    "2026-10-06": 500
+    "2026-10-06": 500,
+    "2026-10-07": 500
   },
   "daily_reply_count": {
     "2026-06-15": 10,
@@ -160,12 +161,13 @@
     "2026-10-03": 0,
     "2026-10-04": 0,
     "2026-10-05": 4,
-    "2026-10-06": 21
+    "2026-10-06": 21,
+    "2026-10-07": 1
   },
   "do_not_contact": [],
   "bounce_replacement_queue": [],
-  "sheet_cursor": 19191,
-  "last_daily_run": "2026-10-06",
+  "sheet_cursor": 19312,
+  "last_daily_run": "2026-10-07",
   "daily_new_count": {
     "2026-07-29": 750,
     "2026-07-30": 281,
@@ -186,7 +188,8 @@
     "2026-10-01": 4,
     "2026-10-02": 198,
     "2026-10-05": 150,
-    "2026-10-06": 300
+    "2026-10-06": 300,
+    "2026-10-07": 410
   },
   "daily_bounce_count": {
     "2026-07-30": 292,
@@ -273,7 +276,8 @@
     "2026-09-14": 1,
     "2026-09-28": 1,
     "2026-09-30": 1,
-    "2026-10-06": 11
+    "2026-10-06": 11,
+    "2026-10-07": 1
   },
   "daily_unsub_count": {
     "2026-07-30": 3,
@@ -392,7 +396,8 @@
     "aysor21rc@gmail.com": "2026-10-06",
     "michaeldusan@yahoo.com": "2026-10-06",
     "vpbaseballops@nwllbaseball.com": "2026-10-06",
-    "tulareforcepr@gmail.com": "2026-10-06"
+    "tulareforcepr@gmail.com": "2026-10-06",
+    "cad54littleleague@gmail.com": "2026-10-07"
   },
   "open_leads": [
     {
@@ -406,53 +411,13 @@
       "closed": false
     },
     {
-      "email": "michaeldusan@yahoo.com",
-      "cid": "253471310093",
-      "name": "Mike Dusan",
-      "company": "Madera Youth Soccer League",
-      "why": "Asks pricing and cost per coach; ready to move forward.",
-      "handed_at": "2026-10-06T12:24:42-07:00",
-      "alerted": false,
-      "closed": false
-    },
-    {
-      "email": "vpbaseballops@nwllbaseball.com",
-      "cid": "253492129451",
-      "name": ", Baseball Operations",
-      "company": "Northwood Little League",
-      "why": "Requests quote for 54 managers, Spring 2027 training needed",
-      "handed_at": "2026-10-06T14:45:45-07:00",
-      "alerted": false,
-      "closed": false
-    },
-    {
       "email": "jeff@marketsocal.com",
       "cid": "253246979859",
       "name": "Jeff Rosa",
       "company": "",
       "why": "Specifies 120 certs needed, wants December dates.",
       "handed_at": "2026-10-06T15:44:48-07:00",
-      "alerted": false,
-      "closed": false
-    },
-    {
-      "email": "danjeffries@yahoo.com",
-      "cid": "253247042744",
-      "name": "Dan Jeffries",
-      "company": "",
-      "why": "Asks rates and certification issuer; 15 coaches scheduled December.",
-      "handed_at": "2026-10-06T15:44:56-07:00",
-      "alerted": false,
-      "closed": false
-    },
-    {
-      "email": "president@vallbaseball.com",
-      "cid": "253247042900",
-      "name": "Dustin Smith",
-      "company": "Vista American Little League",
-      "why": "Asks what the cost for training is",
-      "handed_at": "2026-10-06T15:45:01-07:00",
-      "alerted": false,
+      "alerted": true,
       "closed": false
     },
     {
@@ -462,7 +427,7 @@
       "company": "",
       "why": "Asks pricing, group size (100 people), capacity, certification, format options.",
       "handed_at": "2026-10-06T15:45:05-07:00",
-      "alerted": false,
+      "alerted": true,
       "closed": false
     },
     {
@@ -472,7 +437,7 @@
       "company": "AYSO Region 599",
       "why": "Wants to schedule call; 6 teams need certified coaches; AED compliance urgency.",
       "handed_at": "2026-10-06T15:45:12-07:00",
-      "alerted": false,
+      "alerted": true,
       "closed": false
     },
     {
@@ -482,7 +447,7 @@
       "company": "AYSO Region 174",
       "why": "Requests quote for ~50 people; names decision-maker and quantity.",
       "handed_at": "2026-10-06T15:45:20-07:00",
-      "alerted": false,
+      "alerted": true,
       "closed": false
     },
     {
@@ -492,17 +457,7 @@
       "company": "Visalia Youth Soccer League",
       "why": "Asks what our cost plan is; ready to evaluate pricing.",
       "handed_at": "2026-10-06T15:45:26-07:00",
-      "alerted": false,
-      "closed": false
-    },
-    {
-      "email": "tulareforcepr@gmail.com",
-      "cid": "253262732109",
-      "name": "Brian Vieria",
-      "company": "Tulare Youth Soccer League",
-      "why": "States 60+ staff need training, asks about coordination, ready to talk.",
-      "handed_at": "2026-10-06T15:45:30-07:00",
-      "alerted": false,
+      "alerted": true,
       "closed": false
     },
     {
@@ -512,13 +467,24 @@
       "company": "AYSO Region 21",
       "why": "Provided coach count (250); ready for quote and scheduling.",
       "handed_at": "2026-10-06T15:45:46-07:00",
+      "alerted": true,
+      "closed": false
+    },
+    {
+      "email": "cad54littleleague@gmail.com",
+      "cid": "253638633758",
+      "name": "Erika Garcia-Ciucci",
+      "company": "Little League California District 54",
+      "why": "States 135 need training; actionable volume for immediate quote/scheduling.",
+      "handed_at": "2026-10-07T08:45:46-07:00",
       "alerted": false,
       "closed": false
     }
   ],
   "daily_campaign_sent": {
     "2026-10-05": 150,
-    "2026-10-06": 300
+    "2026-10-06": 300,
+    "2026-10-07": 300
   },
   "reply_rescan_done": "2026-10-05T03:07:00Z/2026-10-06T19:20:16Z"
 }

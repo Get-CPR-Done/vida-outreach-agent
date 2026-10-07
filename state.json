@@ -162,7 +162,7 @@
     "2026-10-04": 0,
     "2026-10-05": 4,
     "2026-10-06": 21,
-    "2026-10-07": 1
+    "2026-10-07": 7
   },
   "do_not_contact": [],
   "bounce_replacement_queue": [],
@@ -251,7 +251,8 @@
     "2026-10-02": 4,
     "2026-10-03": 3,
     "2026-10-04": 2,
-    "2026-10-06": 10
+    "2026-10-06": 10,
+    "2026-10-07": 3
   },
   "daily_sql_count": {
     "2026-07-30": 4,
@@ -277,7 +278,7 @@
     "2026-09-28": 1,
     "2026-09-30": 1,
     "2026-10-06": 11,
-    "2026-10-07": 1
+    "2026-10-07": 5
   },
   "daily_unsub_count": {
     "2026-07-30": 3,
@@ -311,7 +312,8 @@
     "2026-09-29": 1,
     "2026-09-30": 1,
     "2026-10-01": 1,
-    "2026-10-06": 2
+    "2026-10-06": 2,
+    "2026-10-07": 1
   },
   "daily_customer_count": {
     "2026-07-31": 2,
@@ -334,7 +336,8 @@
     "2026-09-24": 2,
     "2026-09-29": 4,
     "2026-09-30": 1,
-    "2026-10-06": 1
+    "2026-10-06": 1,
+    "2026-10-07": 1
   },
   "forwarded_recent": {
     "lsilva@eusd.org": "2026-08-17",
@@ -397,7 +400,13 @@
     "michaeldusan@yahoo.com": "2026-10-06",
     "vpbaseballops@nwllbaseball.com": "2026-10-06",
     "tulareforcepr@gmail.com": "2026-10-06",
-    "cad54littleleague@gmail.com": "2026-10-07"
+    "cad54littleleague@gmail.com": "2026-10-07",
+    "president@sacunited.com": "2026-10-07",
+    "kevincrow@busc.org": "2026-10-07",
+    "secretary@centralcoastsurfsoccer.com": "2026-10-07",
+    "ericaferriolamll@gmail.com": "2026-10-07",
+    "treasurer@ayso827.org": "2026-10-07",
+    "rca@ayso20.org": "2026-10-07"
   },
   "open_leads": [
     {
@@ -477,6 +486,46 @@
       "company": "Little League California District 54",
       "why": "States 135 need training; actionable volume for immediate quote/scheduling.",
       "handed_at": "2026-10-07T08:45:46-07:00",
+      "alerted": false,
+      "closed": false
+    },
+    {
+      "email": "president@sacunited.com",
+      "cid": "253665257350",
+      "name": "Alberto Regalado",
+      "company": "Sacramento United",
+      "why": "Asks what it costs; states 50 coaches need training",
+      "handed_at": "2026-10-07T11:20:18-07:00",
+      "alerted": false,
+      "closed": false
+    },
+    {
+      "email": "secretary@centralcoastsurfsoccer.com",
+      "cid": "253482203993",
+      "name": "Sabrina Mokuahi-Reyes",
+      "company": "CENTRAL COAST SURF SOCCER CLUB",
+      "why": "Requests quote for 50 coaches; actively seeking training.",
+      "handed_at": "2026-10-07T11:20:37-07:00",
+      "alerted": false,
+      "closed": false
+    },
+    {
+      "email": "treasurer@ayso827.org",
+      "cid": "253665700201",
+      "name": "Treasurer 827",
+      "company": "AYSO Region 827",
+      "why": "Requests itemized costs for 30 coaches; ready for estimate.",
+      "handed_at": "2026-10-07T11:20:50-07:00",
+      "alerted": false,
+      "closed": false
+    },
+    {
+      "email": "rca@ayso20.org",
+      "cid": "253663844177",
+      "name": "Erik Saltmarsh",
+      "company": "AYSO Region 20 (Santa Monica)",
+      "why": "Provided coach count; part of decision process; can input info.",
+      "handed_at": "2026-10-07T11:21:00-07:00",
       "alerted": false,
       "closed": false
     }

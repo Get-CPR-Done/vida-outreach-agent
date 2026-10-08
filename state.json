@@ -65,7 +65,8 @@
     "2026-10-02": 200,
     "2026-10-05": 350,
     "2026-10-06": 500,
-    "2026-10-07": 500
+    "2026-10-07": 500,
+    "2026-10-08": 500
   },
   "daily_reply_count": {
     "2026-06-15": 10,
@@ -162,12 +163,13 @@
     "2026-10-04": 0,
     "2026-10-05": 4,
     "2026-10-06": 21,
-    "2026-10-07": 14
+    "2026-10-07": 14,
+    "2026-10-08": 0
   },
   "do_not_contact": [],
   "bounce_replacement_queue": [],
-  "sheet_cursor": 19312,
-  "last_daily_run": "2026-10-07",
+  "sheet_cursor": 19736,
+  "last_daily_run": "2026-10-08",
   "daily_new_count": {
     "2026-07-29": 750,
     "2026-07-30": 281,
@@ -189,7 +191,8 @@
     "2026-10-02": 198,
     "2026-10-05": 150,
     "2026-10-06": 300,
-    "2026-10-07": 410
+    "2026-10-07": 410,
+    "2026-10-08": 359
   },
   "daily_bounce_count": {
     "2026-07-30": 292,
@@ -487,90 +490,21 @@
       "closed": false
     },
     {
-      "email": "cad54littleleague@gmail.com",
-      "cid": "253638633758",
-      "name": "Erika Garcia-Ciucci",
-      "company": "Little League California District 54",
-      "why": "States 135 need training; actionable volume for immediate quote/scheduling.",
-      "handed_at": "2026-10-07T08:45:46-07:00",
-      "alerted": false,
-      "closed": false
-    },
-    {
-      "email": "president@sacunited.com",
-      "cid": "253665257350",
-      "name": "Alberto Regalado",
-      "company": "Sacramento United",
-      "why": "Asks what it costs; states 50 coaches need training",
-      "handed_at": "2026-10-07T11:20:18-07:00",
-      "alerted": false,
-      "closed": false
-    },
-    {
-      "email": "secretary@centralcoastsurfsoccer.com",
-      "cid": "253482203993",
-      "name": "Sabrina Mokuahi-Reyes",
-      "company": "CENTRAL COAST SURF SOCCER CLUB",
-      "why": "Requests quote for 50 coaches; actively seeking training.",
-      "handed_at": "2026-10-07T11:20:37-07:00",
-      "alerted": false,
-      "closed": false
-    },
-    {
-      "email": "treasurer@ayso827.org",
-      "cid": "253665700201",
-      "name": "Treasurer 827",
-      "company": "AYSO Region 827",
-      "why": "Requests itemized costs for 30 coaches; ready for estimate.",
-      "handed_at": "2026-10-07T11:20:50-07:00",
-      "alerted": false,
-      "closed": false
-    },
-    {
-      "email": "rca@ayso20.org",
-      "cid": "253663844177",
-      "name": "Erik Saltmarsh",
-      "company": "AYSO Region 20 (Santa Monica)",
-      "why": "Provided coach count; part of decision process; can input info.",
-      "handed_at": "2026-10-07T11:21:00-07:00",
-      "alerted": false,
-      "closed": false
-    },
-    {
-      "email": "jarrodebutler@gmail.com",
-      "cid": "253680037688",
-      "name": "Jarrod Butler",
-      "company": "Concord American Little League",
-      "why": "Requests quote for 125 coaches; actionable prospect data.",
-      "handed_at": "2026-10-07T12:45:44-07:00",
-      "alerted": false,
-      "closed": false
-    },
-    {
-      "email": "jake@jscsoccer.org",
-      "cid": "253681602744",
-      "name": "Jacob Morrison",
-      "company": "",
-      "why": "Asks for pricing sheet; actionable request to quote.",
-      "handed_at": "2026-10-07T12:45:54-07:00",
-      "alerted": false,
-      "closed": false
-    },
-    {
       "email": "red.tcall@gmail.com",
       "cid": "253717257643",
       "name": "Fenared Ortiz",
       "company": "",
       "why": "Asks for quote; specifies 50 people need training.",
       "handed_at": "2026-10-07T16:45:38-07:00",
-      "alerted": false,
+      "alerted": true,
       "closed": false
     }
   ],
   "daily_campaign_sent": {
     "2026-10-05": 150,
     "2026-10-06": 300,
-    "2026-10-07": 300
+    "2026-10-07": 300,
+    "2026-10-08": 300
   },
   "reply_rescan_done": "2026-10-05T03:07:00Z/2026-10-06T19:20:16Z"
 }

@@ -164,7 +164,7 @@
     "2026-10-05": 4,
     "2026-10-06": 21,
     "2026-10-07": 14,
-    "2026-10-08": 7
+    "2026-10-08": 9
   },
   "do_not_contact": [],
   "bounce_replacement_queue": [],
@@ -256,7 +256,7 @@
     "2026-10-04": 2,
     "2026-10-06": 10,
     "2026-10-07": 5,
-    "2026-10-08": 4
+    "2026-10-08": 5
   },
   "daily_sql_count": {
     "2026-07-30": 4,
@@ -283,7 +283,7 @@
     "2026-09-30": 1,
     "2026-10-06": 11,
     "2026-10-07": 8,
-    "2026-10-08": 2
+    "2026-10-08": 4
   },
   "daily_unsub_count": {
     "2026-07-30": 3,
@@ -426,7 +426,9 @@
     "justlikehomedaycare1@yahoo.com": "2026-10-08",
     "commissioner@ayso152.org": "2026-10-08",
     "rc@ayso254.org": "2026-10-08",
-    "ggslittlelambs@gmail.com": "2026-10-08"
+    "ggslittlelambs@gmail.com": "2026-10-08",
+    "amydon84@gmail.com": "2026-10-08",
+    "admin@legendsfutbol.org": "2026-10-08"
   },
   "open_leads": [
     {
@@ -526,6 +528,26 @@
       "company": "",
       "why": "Needs 2 recertifications, 2 new certs. Requests details.",
       "handed_at": "2026-10-08T11:25:38-07:00",
+      "alerted": false,
+      "closed": false
+    },
+    {
+      "email": "amydon84@gmail.com",
+      "cid": "253897729864",
+      "name": "Amy Donaldson",
+      "company": "Napa Little League",
+      "why": "Asks for pricing and specific certification requirements.",
+      "handed_at": "2026-10-08T14:12:58-07:00",
+      "alerted": false,
+      "closed": false
+    },
+    {
+      "email": "admin@legendsfutbol.org",
+      "cid": "253891236258",
+      "name": "Yvonne Admin",
+      "company": "",
+      "why": "Requests quote and dates for 10 coaches. Ready to act.",
+      "handed_at": "2026-10-08T14:13:49-07:00",
       "alerted": false,
       "closed": false
     }

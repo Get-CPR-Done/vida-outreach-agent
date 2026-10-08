@@ -164,7 +164,7 @@
     "2026-10-05": 4,
     "2026-10-06": 21,
     "2026-10-07": 14,
-    "2026-10-08": 0
+    "2026-10-08": 6
   },
   "do_not_contact": [],
   "bounce_replacement_queue": [],
@@ -255,7 +255,8 @@
     "2026-10-03": 3,
     "2026-10-04": 2,
     "2026-10-06": 10,
-    "2026-10-07": 5
+    "2026-10-07": 5,
+    "2026-10-08": 3
   },
   "daily_sql_count": {
     "2026-07-30": 4,
@@ -281,7 +282,8 @@
     "2026-09-28": 1,
     "2026-09-30": 1,
     "2026-10-06": 11,
-    "2026-10-07": 8
+    "2026-10-07": 8,
+    "2026-10-08": 2
   },
   "daily_unsub_count": {
     "2026-07-30": 3,
@@ -340,7 +342,8 @@
     "2026-09-29": 4,
     "2026-09-30": 1,
     "2026-10-06": 1,
-    "2026-10-07": 5
+    "2026-10-07": 5,
+    "2026-10-08": 2
   },
   "forwarded_recent": {
     "lsilva@eusd.org": "2026-08-17",
@@ -416,7 +419,13 @@
     "rap.publicinfo@lacity.org": "2026-10-07",
     "red.tcall@gmail.com": "2026-10-07",
     "arc@ayso84.org": "2026-10-07",
-    "contact@smashkoala.com": "2026-10-07"
+    "contact@smashkoala.com": "2026-10-07",
+    "nlcooper50@gmail.com": "2026-10-08",
+    "stephanne311@gmail.com": "2026-10-08",
+    "amanda@ayso281.org": "2026-10-08",
+    "justlikehomedaycare1@yahoo.com": "2026-10-08",
+    "commissioner@ayso152.org": "2026-10-08",
+    "rc@ayso254.org": "2026-10-08"
   },
   "open_leads": [
     {
@@ -497,6 +506,26 @@
       "why": "Asks for quote; specifies 50 people need training.",
       "handed_at": "2026-10-07T16:45:38-07:00",
       "alerted": true,
+      "closed": false
+    },
+    {
+      "email": "nlcooper50@gmail.com",
+      "cid": "253866856293",
+      "name": "Nancy Cooper",
+      "company": "AYSO Region 65",
+      "why": "Asking for pricing and comparing costs; clear purchase intent.",
+      "handed_at": "2026-10-08T11:25:32-07:00",
+      "alerted": false,
+      "closed": false
+    },
+    {
+      "email": "stephanne311@gmail.com",
+      "cid": "253864809219",
+      "name": "Stephanie Ramirez",
+      "company": "",
+      "why": "Needs 2 recertifications, 2 new certs. Requests details.",
+      "handed_at": "2026-10-08T11:25:38-07:00",
+      "alerted": false,
       "closed": false
     }
   ],

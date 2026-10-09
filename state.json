@@ -66,7 +66,8 @@
     "2026-10-05": 350,
     "2026-10-06": 500,
     "2026-10-07": 500,
-    "2026-10-08": 500
+    "2026-10-08": 500,
+    "2026-10-09": 500
   },
   "daily_reply_count": {
     "2026-06-15": 10,
@@ -164,12 +165,13 @@
     "2026-10-05": 4,
     "2026-10-06": 21,
     "2026-10-07": 14,
-    "2026-10-08": 10
+    "2026-10-08": 10,
+    "2026-10-09": 0
   },
   "do_not_contact": [],
   "bounce_replacement_queue": [],
-  "sheet_cursor": 19736,
-  "last_daily_run": "2026-10-08",
+  "sheet_cursor": 20148,
+  "last_daily_run": "2026-10-09",
   "daily_new_count": {
     "2026-07-29": 750,
     "2026-07-30": 281,
@@ -192,7 +194,8 @@
     "2026-10-05": 150,
     "2026-10-06": 300,
     "2026-10-07": 410,
-    "2026-10-08": 359
+    "2026-10-08": 359,
+    "2026-10-09": 212
   },
   "daily_bounce_count": {
     "2026-07-30": 292,
@@ -511,53 +514,14 @@
       "handed_at": "2026-10-07T16:45:38-07:00",
       "alerted": true,
       "closed": false
-    },
-    {
-      "email": "nlcooper50@gmail.com",
-      "cid": "253866856293",
-      "name": "Nancy Cooper",
-      "company": "AYSO Region 65",
-      "why": "Asking for pricing and comparing costs; clear purchase intent.",
-      "handed_at": "2026-10-08T11:25:32-07:00",
-      "alerted": false,
-      "closed": false
-    },
-    {
-      "email": "stephanne311@gmail.com",
-      "cid": "253864809219",
-      "name": "Stephanie Ramirez",
-      "company": "",
-      "why": "Needs 2 recertifications, 2 new certs. Requests details.",
-      "handed_at": "2026-10-08T11:25:38-07:00",
-      "alerted": false,
-      "closed": false
-    },
-    {
-      "email": "amydon84@gmail.com",
-      "cid": "253897729864",
-      "name": "Amy Donaldson",
-      "company": "Napa Little League",
-      "why": "Asks for pricing and specific certification requirements.",
-      "handed_at": "2026-10-08T14:12:58-07:00",
-      "alerted": false,
-      "closed": false
-    },
-    {
-      "email": "admin@legendsfutbol.org",
-      "cid": "253891236258",
-      "name": "Yvonne Admin",
-      "company": "",
-      "why": "Requests quote and dates for 10 coaches. Ready to act.",
-      "handed_at": "2026-10-08T14:13:49-07:00",
-      "alerted": false,
-      "closed": false
     }
   ],
   "daily_campaign_sent": {
     "2026-10-05": 150,
     "2026-10-06": 300,
     "2026-10-07": 300,
-    "2026-10-08": 300
+    "2026-10-08": 300,
+    "2026-10-09": 300
   },
   "reply_rescan_done": "2026-10-05T03:07:00Z/2026-10-06T19:20:16Z"
 }

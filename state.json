@@ -168,7 +168,7 @@
     "2026-10-08": 10,
     "2026-10-09": 7,
     "2026-10-10": 1,
-    "2026-10-11": 0
+    "2026-10-11": 1
   },
   "do_not_contact": [],
   "bounce_replacement_queue": [],
@@ -263,7 +263,8 @@
     "2026-10-07": 5,
     "2026-10-08": 5,
     "2026-10-09": 7,
-    "2026-10-10": 2
+    "2026-10-10": 2,
+    "2026-10-11": 1
   },
   "daily_sql_count": {
     "2026-07-30": 4,
@@ -290,7 +291,8 @@
     "2026-09-30": 1,
     "2026-10-06": 11,
     "2026-10-07": 8,
-    "2026-10-08": 4
+    "2026-10-08": 4,
+    "2026-10-11": 1
   },
   "daily_unsub_count": {
     "2026-07-30": 3,
@@ -448,7 +450,8 @@
     "bobbyimperato@gmail.com": "2026-10-09",
     "tim.underdown@ca49.org": "2026-10-09",
     "tonyshen0@gmail.com": "2026-10-09",
-    "ron.calhoun@pasoccerclub.org": "2026-10-10"
+    "ron.calhoun@pasoccerclub.org": "2026-10-10",
+    "mllpresident@morelandlittleleague.org": "2026-10-11"
   },
   "open_leads": [
     {
@@ -529,6 +532,16 @@
       "why": "Asks for quote; specifies 50 people need training.",
       "handed_at": "2026-10-07T16:45:38-07:00",
       "alerted": true,
+      "closed": false
+    },
+    {
+      "email": "mllpresident@morelandlittleleague.org",
+      "cid": "254377208599",
+      "name": "Chris Novak",
+      "company": "Moreland Little League",
+      "why": "President requests call to plan CPR certification for coaches.",
+      "handed_at": "2026-10-11T12:45:35-07:00",
+      "alerted": false,
       "closed": false
     }
   ],

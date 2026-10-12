@@ -170,7 +170,7 @@
     "2026-10-09": 7,
     "2026-10-10": 1,
     "2026-10-11": 1,
-    "2026-10-12": 9
+    "2026-10-12": 11
   },
   "do_not_contact": [],
   "bounce_replacement_queue": [],
@@ -267,7 +267,7 @@
     "2026-10-09": 7,
     "2026-10-10": 2,
     "2026-10-11": 1,
-    "2026-10-12": 1
+    "2026-10-12": 2
   },
   "daily_sql_count": {
     "2026-07-30": 4,
@@ -362,7 +362,7 @@
     "2026-10-08": 3,
     "2026-10-09": 6,
     "2026-10-10": 1,
-    "2026-10-12": 3
+    "2026-10-12": 4
   },
   "forwarded_recent": {
     "lsilva@eusd.org": "2026-08-17",
@@ -447,7 +447,7 @@
     "rc@ayso254.org": "2026-10-08",
     "ggslittlelambs@gmail.com": "2026-10-08",
     "amydon84@gmail.com": "2026-10-08",
-    "admin@legendsfutbol.org": "2026-10-08",
+    "admin@legendsfutbol.org": "2026-10-12",
     "region294rc@gmail.com": "2026-10-08",
     "mprojas@gmail.com": "2026-10-09",
     "president@maidull.org": "2026-10-09",
@@ -465,7 +465,8 @@
     "coach_admin@ayso304.org": "2026-10-12",
     "alvin@ayso35.org": "2026-10-12",
     "treasurer.vusc@gmail.com": "2026-10-12",
-    "amyxu3221@gmail.com": "2026-10-12"
+    "amyxu3221@gmail.com": "2026-10-12",
+    "rca@ayso213.org": "2026-10-12"
   },
   "open_leads": [
     {

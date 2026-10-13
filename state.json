@@ -68,7 +68,8 @@
     "2026-10-07": 500,
     "2026-10-08": 500,
     "2026-10-09": 500,
-    "2026-10-12": 500
+    "2026-10-12": 500,
+    "2026-10-13": 499
   },
   "daily_reply_count": {
     "2026-06-15": 10,
@@ -170,12 +171,13 @@
     "2026-10-09": 7,
     "2026-10-10": 1,
     "2026-10-11": 1,
-    "2026-10-12": 13
+    "2026-10-12": 13,
+    "2026-10-13": 3
   },
   "do_not_contact": [],
   "bounce_replacement_queue": [],
   "sheet_cursor": 20148,
-  "last_daily_run": "2026-10-12",
+  "last_daily_run": "2026-10-13",
   "daily_new_count": {
     "2026-07-29": 750,
     "2026-07-30": 281,
@@ -296,7 +298,8 @@
     "2026-10-07": 8,
     "2026-10-08": 4,
     "2026-10-11": 1,
-    "2026-10-12": 1
+    "2026-10-12": 1,
+    "2026-10-13": 1
   },
   "daily_unsub_count": {
     "2026-07-30": 3,
@@ -362,7 +365,8 @@
     "2026-10-08": 3,
     "2026-10-09": 6,
     "2026-10-10": 1,
-    "2026-10-12": 5
+    "2026-10-12": 5,
+    "2026-10-13": 1
   },
   "forwarded_recent": {
     "lsilva@eusd.org": "2026-08-17",
@@ -468,7 +472,10 @@
     "amyxu3221@gmail.com": "2026-10-12",
     "rca@ayso213.org": "2026-10-12",
     "170lkimble@gmail.com": "2026-10-12",
-    "applelanddaycare@gmail.com": "2026-10-12"
+    "applelanddaycare@gmail.com": "2026-10-12",
+    "sweetkrw@gmail.com": "2026-10-13",
+    "nlousen@pvrpd.org": "2026-10-13",
+    "heeyitsme@aol.com": "2026-10-13"
   },
   "open_leads": [
     {
@@ -562,12 +569,12 @@
       "closed": false
     },
     {
-      "email": "hagiposternak@gmail.com",
-      "cid": "254557462169",
-      "name": "Hagar Posternak",
+      "email": "sweetkrw@gmail.com",
+      "cid": "254708420893",
+      "name": "Kimberly Williamson",
       "company": "",
-      "why": "Asking about Spanish availability and pricing per person",
-      "handed_at": "2026-10-12T12:42:00-07:00",
+      "why": "Requests pricing, dates, program details; ready to schedule.",
+      "handed_at": "2026-10-13T08:45:38-07:00",
       "alerted": false,
       "closed": false
     }
@@ -578,7 +585,8 @@
     "2026-10-07": 300,
     "2026-10-08": 300,
     "2026-10-09": 300,
-    "2026-10-12": 300
+    "2026-10-12": 300,
+    "2026-10-13": 299
   },
   "reply_rescan_done": "2026-10-05T03:07:00Z/2026-10-06T19:20:16Z"
 }

@@ -69,7 +69,8 @@
     "2026-10-08": 500,
     "2026-10-09": 500,
     "2026-10-12": 500,
-    "2026-10-13": 499
+    "2026-10-13": 499,
+    "2026-10-14": 289
   },
   "daily_reply_count": {
     "2026-06-15": 10,
@@ -172,12 +173,13 @@
     "2026-10-10": 1,
     "2026-10-11": 1,
     "2026-10-12": 13,
-    "2026-10-13": 8
+    "2026-10-13": 8,
+    "2026-10-14": 1
   },
   "do_not_contact": [],
   "bounce_replacement_queue": [],
   "sheet_cursor": 20148,
-  "last_daily_run": "2026-10-13",
+  "last_daily_run": "2026-10-14",
   "daily_new_count": {
     "2026-07-29": 750,
     "2026-07-30": 281,
@@ -201,7 +203,8 @@
     "2026-10-06": 300,
     "2026-10-07": 410,
     "2026-10-08": 359,
-    "2026-10-09": 212
+    "2026-10-09": 212,
+    "2026-10-14": 89
   },
   "daily_bounce_count": {
     "2026-07-30": 292,
@@ -300,7 +303,8 @@
     "2026-10-08": 4,
     "2026-10-11": 1,
     "2026-10-12": 1,
-    "2026-10-13": 1
+    "2026-10-13": 1,
+    "2026-10-14": 1
   },
   "daily_unsub_count": {
     "2026-07-30": 3,
@@ -339,7 +343,8 @@
     "2026-10-09": 3,
     "2026-10-11": 1,
     "2026-10-12": 7,
-    "2026-10-13": 2
+    "2026-10-13": 2,
+    "2026-10-14": 1
   },
   "daily_customer_count": {
     "2026-07-31": 2,
@@ -482,7 +487,8 @@
     "qhsafety@ayso638.org": "2026-10-13",
     "mtfaraone@gmail.com": "2026-10-13",
     "jen.tahl@mnllbaseball.org": "2026-10-13",
-    "arc.ayso54@gmail.com": "2026-10-13"
+    "arc.ayso54@gmail.com": "2026-10-13",
+    "safety@moorparkayso.org": "2026-10-14"
   },
   "open_leads": [
     {
@@ -576,12 +582,12 @@
       "closed": false
     },
     {
-      "email": "sweetkrw@gmail.com",
-      "cid": "254708420893",
-      "name": "Kimberly Williamson",
-      "company": "",
-      "why": "Requests pricing, dates, program details; ready to schedule.",
-      "handed_at": "2026-10-13T08:45:38-07:00",
+      "email": "safety@moorparkayso.org",
+      "cid": "255041495935",
+      "name": "Kirsten Falsey",
+      "company": "AYSO (moorparkayso.org)",
+      "why": "Asks for certification format and cost\u2014actionable pricing inquiry",
+      "handed_at": "2026-10-14T08:45:40-07:00",
       "alerted": false,
       "closed": false
     }
@@ -593,7 +599,8 @@
     "2026-10-08": 300,
     "2026-10-09": 300,
     "2026-10-12": 300,
-    "2026-10-13": 299
+    "2026-10-13": 299,
+    "2026-10-14": 89
   },
   "reply_rescan_done": "2026-10-05T03:07:00Z/2026-10-06T19:20:16Z"
 }

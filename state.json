@@ -174,7 +174,7 @@
     "2026-10-11": 1,
     "2026-10-12": 13,
     "2026-10-13": 8,
-    "2026-10-14": 3
+    "2026-10-14": 5
   },
   "do_not_contact": [],
   "bounce_replacement_queue": [],
@@ -273,7 +273,8 @@
     "2026-10-10": 2,
     "2026-10-11": 1,
     "2026-10-12": 2,
-    "2026-10-13": 5
+    "2026-10-13": 5,
+    "2026-10-14": 3
   },
   "daily_sql_count": {
     "2026-07-30": 4,
@@ -304,7 +305,7 @@
     "2026-10-11": 1,
     "2026-10-12": 1,
     "2026-10-13": 1,
-    "2026-10-14": 1
+    "2026-10-14": 2
   },
   "daily_unsub_count": {
     "2026-07-30": 3,
@@ -344,7 +345,7 @@
     "2026-10-11": 1,
     "2026-10-12": 7,
     "2026-10-13": 2,
-    "2026-10-14": 1
+    "2026-10-14": 3
   },
   "daily_customer_count": {
     "2026-07-31": 2,
@@ -491,7 +492,9 @@
     "arc.ayso54@gmail.com": "2026-10-13",
     "safety@moorparkayso.org": "2026-10-14",
     "vanessaalane@gmail.com": "2026-10-14",
-    "analanuza27@gmail.com": "2026-10-14"
+    "analanuza27@gmail.com": "2026-10-14",
+    "littlelearnersfc@gmail.com": "2026-10-14",
+    "safetyofficerwsll@gmail.com": "2026-10-14"
   },
   "open_leads": [
     {
@@ -591,6 +594,16 @@
       "company": "AYSO (moorparkayso.org)",
       "why": "Asks for certification format and cost\u2014actionable pricing inquiry",
       "handed_at": "2026-10-14T08:45:40-07:00",
+      "alerted": false,
+      "closed": false
+    },
+    {
+      "email": "safetyofficerwsll@gmail.com",
+      "cid": "255092464039",
+      "name": "Al Casciato",
+      "company": "West Sacramento Little League",
+      "why": "Requests quote, specifies 50 coaches, proposes March 6, 2027 date.",
+      "handed_at": "2026-10-14T12:45:39-07:00",
       "alerted": false,
       "closed": false
     }

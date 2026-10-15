@@ -175,7 +175,8 @@
     "2026-10-11": 1,
     "2026-10-12": 13,
     "2026-10-13": 8,
-    "2026-10-14": 6
+    "2026-10-14": 6,
+    "2026-10-15": 1
   },
   "do_not_contact": [],
   "bounce_replacement_queue": [],
@@ -276,7 +277,8 @@
     "2026-10-11": 1,
     "2026-10-12": 2,
     "2026-10-13": 5,
-    "2026-10-14": 4
+    "2026-10-14": 4,
+    "2026-10-15": 1
   },
   "daily_sql_count": {
     "2026-07-30": 4,
@@ -497,7 +499,8 @@
     "analanuza27@gmail.com": "2026-10-14",
     "littlelearnersfc@gmail.com": "2026-10-14",
     "safetyofficerwsll@gmail.com": "2026-10-14",
-    "rc.ayso54@gmail.com": "2026-10-14"
+    "rc.ayso54@gmail.com": "2026-10-14",
+    "patricia.mv.lima@gmail.com": "2026-10-15"
   },
   "open_leads": [
     {
@@ -588,26 +591,6 @@
       "why": "President requests call to plan CPR certification for coaches.",
       "handed_at": "2026-10-11T12:45:35-07:00",
       "alerted": true,
-      "closed": false
-    },
-    {
-      "email": "safety@moorparkayso.org",
-      "cid": "255041495935",
-      "name": "Kirsten Falsey",
-      "company": "AYSO (moorparkayso.org)",
-      "why": "Asks for certification format and cost\u2014actionable pricing inquiry",
-      "handed_at": "2026-10-14T08:45:40-07:00",
-      "alerted": false,
-      "closed": false
-    },
-    {
-      "email": "safetyofficerwsll@gmail.com",
-      "cid": "255092464039",
-      "name": "Al Casciato",
-      "company": "West Sacramento Little League",
-      "why": "Requests quote, specifies 50 coaches, proposes March 6, 2027 date.",
-      "handed_at": "2026-10-14T12:45:39-07:00",
-      "alerted": false,
       "closed": false
     }
   ],

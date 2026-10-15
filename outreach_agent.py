@@ -2197,6 +2197,14 @@ def archive_message(mail, mid):
     mail.store(mid, "-X-GM-LABELS", "\\Inbox")
 
 
+WEBMAIL_DOMAINS = {
+    "gmail.com", "googlemail.com", "yahoo.com", "ymail.com", "hotmail.com", "outlook.com",
+    "live.com", "msn.com", "aol.com", "icloud.com", "me.com", "mac.com", "comcast.net",
+    "sbcglobal.net", "att.net", "cox.net", "verizon.net", "earthlink.net", "charter.net",
+    "pacbell.net", "protonmail.com", "proton.me", "ca.rr.com", "twc.com",
+}
+
+
 def _opt_out_suppressor(svc, email_index, do_not_contact, dry_run):
     """Build (mark_row, suppress_opt_out) bound to one run's sheet connection. Shared by
     reply_check and the one-time optout_audit."""
@@ -2250,6 +2258,14 @@ def _opt_out_suppressor(svc, email_index, do_not_contact, dry_run):
             subj = (subject or "").lower()
             orgs = {k for k in {_org_key(c) for c in rows} if len(k) >= 6 and
                     re.search(r"(?<!\w)" + re.escape(k) + r"(?!\w)", subj)}
+        if not orgs:
+            # Last resort: a board member writing from the league's own domain (angela@ayso281.org
+            # when we'd emailed rc@ayso281.org). Never for webmail domains, which say nothing
+            # about the org.
+            dom = (sender_email or "").lower().rpartition("@")[2]
+            if dom and dom not in WEBMAIL_DOMAINS:
+                orgs = {_org_key(c) for c in rows
+                        if c["email"].lower().rpartition("@")[2] == dom} - {""}
         targets = hits | {(sender_email or "").lower()} - {""}
         targets |= {c["email"].lower() for c in rows if _org_key(c) in orgs}
         for e in sorted(targets):
@@ -2283,7 +2299,9 @@ def optout_audit(state, dry_run=False):
     mail = imaplib.IMAP4_SSL("imap.gmail.com", ssl_context=ssl_ctx(), timeout=60)
     mail.login(os.environ["GMAIL_ADDRESS"], os.environ["GMAIL_APP_PASSWORD"])
     mail.select('"[Gmail]/All Mail"', readonly=True)
-    _, data = mail.search(None, "SINCE", date.fromisoformat(since).strftime("%d-%b-%Y"))
+    # Inbound only: Vida's own ~500 sends a day made the first sweep take three hours.
+    _, data = mail.search(None, "X-GM-RAW",
+                          f'"after:{since.replace("-", "/")} -from:{VIDA_EMAIL}"')
     mids = data[0].split() if data and data[0] else []
     log.info(f"Opt-out audit: {len(mids)} messages since {since}")
 

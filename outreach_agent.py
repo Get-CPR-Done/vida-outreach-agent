@@ -2197,29 +2197,9 @@ def archive_message(mail, mid):
     mail.store(mid, "-X-GM-LABELS", "\\Inbox")
 
 
-def check_replies(state, dry_run=False):
-    import imaplib
-    import email as emaillib
-
-    gmail_user = os.environ.get("GMAIL_ADDRESS", "")
-    gmail_pass = os.environ.get("GMAIL_APP_PASSWORD", "")
-
-    if not gmail_user or not gmail_pass:
-        log.info("Gmail credentials not set — skipping reply check")
-        return
-
-    log.info("Checking Gmail inbox for replies / bounces / OOOs...")
-    do_not_contact = set(state.get("do_not_contact", []))
-
-    # Best-effort sheet connection so we can write reply outcomes back to rows.
-    svc = None
-    email_index = {}
-    try:
-        svc = _sheet_service()
-        email_index = sheets_db.build_email_index(svc, SPREADSHEET_ID)
-    except Exception as e:
-        log.warning(f"  Sheet unavailable for reply write-back: {e} (continuing without it)")
-
+def _opt_out_suppressor(svc, email_index, do_not_contact, dry_run):
+    """Build (mark_row, suppress_opt_out) bound to one run's sheet connection. Shared by
+    reply_check and the one-time optout_audit."""
     def mark_row(addr, **fields):
         """Write status back to the sheet row for this email address, if we can find it.
         Any status change also stamps reply_date with today, so "which leads came in
@@ -2278,6 +2258,118 @@ def check_replies(state, dry_run=False):
                      last_result=last_result)
         log.info(f"    Opt-out covers {len(targets)} address(es)"
                  + (f" across {len(orgs)} org(s): {', '.join(sorted(orgs))}" if orgs else ""))
+        return targets, orgs
+
+    return mark_row, suppress_opt_out
+
+
+def optout_audit(state, dry_run=False):
+    """One-time sweep for opt-outs the old sender-only matching missed (2026-10-15).
+
+    Reads every inbound message in All Mail since AUDIT_SINCE (default: the campaign start),
+    finds the ones asking to be removed, and runs them through the same org-wide
+    suppression reply_check now uses. Emails Chris the list — never logs names or
+    addresses, because this repo's Actions logs are public. --dry-run reports only."""
+    import imaplib
+    import email as emaillib
+    from email.utils import parsedate_to_datetime
+
+    since = (os.environ.get("AUDIT_SINCE") or CAMPAIGN_START_DATE or "2026-10-01").strip()
+    svc = _sheet_service()
+    email_index = sheets_db.build_email_index(svc, SPREADSHEET_ID)
+    before = sheets_db.snapshot_status(svc, SPREADSHEET_ID)
+    _, suppress = _opt_out_suppressor(svc, email_index, set(), dry_run)
+
+    mail = imaplib.IMAP4_SSL("imap.gmail.com", ssl_context=ssl_ctx(), timeout=60)
+    mail.login(os.environ["GMAIL_ADDRESS"], os.environ["GMAIL_APP_PASSWORD"])
+    mail.select('"[Gmail]/All Mail"', readonly=True)
+    _, data = mail.search(None, "SINCE", date.fromisoformat(since).strftime("%d-%b-%Y"))
+    mids = data[0].split() if data and data[0] else []
+    log.info(f"Opt-out audit: {len(mids)} messages since {since}")
+
+    found = []
+    for mid in mids:
+        try:
+            _, md = mail.fetch(mid, "(BODY.PEEK[])")
+            msg = emaillib.message_from_bytes(md[0][1])
+            sender = msg.get("From", "")
+            subject = msg.get("Subject", "") or ""
+            _, sender_email = parse_from(sender)
+            sender_email = (sender_email or "").lower()
+            if (not sender_email or sender_email == VIDA_EMAIL.lower()
+                    or is_internal_address(sender_email)):
+                continue
+            body = _reply_body(msg)
+            kind = classify_reply(sender, subject, body)
+            if kind == "genuine":
+                _auto, opt_out, *_ = classify_interest(subject, body)
+                if not opt_out:
+                    continue
+            elif kind != "unsubscribe":
+                continue
+            try:
+                when = parsedate_to_datetime(msg.get("Date")).date().isoformat()
+            except Exception:
+                when = ""
+            targets, orgs = suppress(msg, sender_email, subject, "opt-out (audit 2026-10-15)")
+            newly = sorted(t for t in targets if t in before
+                           and before[t]["reply_status"] != "Unsubscribed"
+                           and before[t]["do_not_contact"].lower() not in ("yes", "true", "1", "y"))
+            # Emailed again AFTER they asked us to stop.
+            after = sorted(t for t in targets if t in before and when
+                           and (before[t]["date_sent"] or "")[:10] > when)
+            found.append(dict(when=when, sender=sender_email, subject=subject,
+                              orgs=sorted(orgs), newly=newly, after=after,
+                              matched=sender_email in email_index))
+        except Exception as e:
+            log.warning(f"  Audit: could not process a message: {e}")
+    mail.logout()
+
+    missed = [f for f in found if f["newly"]]
+    log.info(f"Opt-out audit: {len(found)} opt-outs, {len(missed)} with rows still active "
+             f"({sum(len(f['newly']) for f in missed)} rows)")
+    lines = [f"Opt-out audit of {VIDA_EMAIL} since {since}"
+             + (" (DRY RUN: nothing written)" if dry_run else ""), "",
+             f"{len(found)} removal requests found. {len(missed)} of them had rows the agent "
+             f"had NOT suppressed; {'they would be' if dry_run else 'those are now'} "
+             f"marked Unsubscribed + do-not-contact.", ""]
+    for f in sorted(found, key=lambda f: (not f["newly"], f["when"])):
+        lines.append(f"{f['when']}  {f['sender']}  —  {f['subject']}")
+        lines.append(f"    org: {', '.join(f['orgs']) or '(none matched)'}  ·  sender on list: "
+                     f"{'yes' if f['matched'] else 'no'}")
+        if f["newly"]:
+            lines.append(f"    MISSED, now suppressed: {', '.join(f['newly'])}")
+        if f["after"]:
+            lines.append(f"    emailed AFTER the request: {', '.join(f['after'])}")
+        lines.append("")
+    send_email(REPORT_EMAIL, f"Vida opt-out audit: {len(missed)} missed of {len(found)}",
+               "\n".join(lines))
+
+
+def check_replies(state, dry_run=False):
+    import imaplib
+    import email as emaillib
+
+    gmail_user = os.environ.get("GMAIL_ADDRESS", "")
+    gmail_pass = os.environ.get("GMAIL_APP_PASSWORD", "")
+
+    if not gmail_user or not gmail_pass:
+        log.info("Gmail credentials not set — skipping reply check")
+        return
+
+    log.info("Checking Gmail inbox for replies / bounces / OOOs...")
+    do_not_contact = set(state.get("do_not_contact", []))
+
+    # Best-effort sheet connection so we can write reply outcomes back to rows.
+    svc = None
+    email_index = {}
+    try:
+        svc = _sheet_service()
+        email_index = sheets_db.build_email_index(svc, SPREADSHEET_ID)
+    except Exception as e:
+        log.warning(f"  Sheet unavailable for reply write-back: {e} (continuing without it)")
+
+    mark_row, suppress_opt_out = _opt_out_suppressor(svc, email_index, do_not_contact, dry_run)
 
     try:
         ctx  = ssl_ctx()
@@ -3510,7 +3602,8 @@ def run_combined_report(dry_run=False):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--mode", choices=["daily","roster","reply_check","stall_check",
-                                           "reconcile","report","combined_report"], required=True)
+                                           "reconcile","report","combined_report",
+                                           "optout_audit"], required=True)
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--force-weekday", action="store_true")
     parser.add_argument("--force", action="store_true")  # alias
@@ -3570,6 +3663,8 @@ def main():
         run_report(dry_run=args.dry_run)
     elif args.mode == "combined_report":
         run_combined_report(dry_run=args.dry_run)
+    elif args.mode == "optout_audit":
+        optout_audit(state, dry_run=args.dry_run)
 
     log.info(f"=== Complete | {datetime.now().isoformat()} ===\n")
 

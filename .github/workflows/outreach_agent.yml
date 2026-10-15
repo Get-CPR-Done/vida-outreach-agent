@@ -39,6 +39,7 @@ on:
           - reconcile
           - report
           - combined_report
+          - optout_audit
       dry_run:
         description: "Dry run (no emails sent)"
         required: false

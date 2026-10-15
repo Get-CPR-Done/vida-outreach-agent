@@ -726,7 +726,7 @@ def fetch_followups(svc, state, needed):
     for c in sheets_db.read_range(svc, SPREADSHEET_ID, ROW_RANGE_START, scan_end - 1):
         if len(out) >= needed:
             break
-        if c["do_not_contact"].lower() in ("yes", "true", "1", "y"):
+        if sheets_db.is_suppressed(c):
             continue
         if not _due_for_followup(c, today):
             continue
@@ -799,7 +799,7 @@ def fetch_campaign_followups(svc, needed):
     for c in rows:
         if len(out) >= needed:
             break
-        if c["do_not_contact"].lower() in ("yes", "true", "1", "y"):
+        if sheets_db.is_suppressed(c):
             continue
         if _org_key(c) in stopped or not _due_for_followup(c, today):
             continue
@@ -2174,6 +2174,9 @@ def classify_reply(sender, subject, body_text):
         "unsubscribe", "remove me", "remove us", "opt out", "opt-out", "take me off",
         "take us off", "please remove", "no longer wish", "do not contact",
         "stop emailing", "stop contacting", "please stop",
+        # How AYSO Region 108 actually said it (2026-10-06..14), none of which matched above.
+        "remove every", "remove all", "never contact", "never again send", "stop sending",
+        "stop spamming", "is spam", "unsolicited", "knock it off", "per the ccpa",
     ]
     if any(k in subject_l for k in unsub_phrases) or any(k in body_l[:400] for k in unsub_phrases):
         return "unsubscribe"
@@ -2233,6 +2236,48 @@ def check_replies(state, dry_run=False):
             sheets_db.update_row(svc, SPREADSHEET_ID, r, **fields)
         except Exception as e:
             log.warning(f"    Could not write row {r} for {addr}: {e}")
+
+    campaign_cache = []
+    def campaign_rows():
+        if not campaign_cache and svc and CAMPAIGN_ROW_START is not None:
+            try:
+                campaign_cache.extend(_read_campaign(svc))
+            except Exception as e:
+                log.warning(f"    Campaign rows unavailable for opt-out matching: {e}")
+        return campaign_cache
+
+    def suppress_opt_out(msg, sender_email, subject, last_result):
+        """Take everyone the opt-out covers off the list, not just the address that wrote.
+
+        League boards are Google Groups: we email rc@league.org, a volunteer answers from
+        their own address, and that address is in no row. Matching only the sender meant
+        AYSO Region 108 asked to be removed five times (2026-10-06..14) while every touch
+        kept going. So we match the group address in To/Cc/Delivered-To, fall back to the
+        org name in the subject, and stop the whole org in the campaign block."""
+        from email.utils import getaddresses
+        hdrs = [msg.get_all(h, []) for h in ("To", "Cc", "Delivered-To", "X-Original-To")]
+        addrs = {a.strip().lower() for _, a in getaddresses([v for vs in hdrs for v in vs]) if a}
+        addrs.add((sender_email or "").lower())
+        addrs = {a for a in addrs if "@" in a and not is_internal_address(a)
+                 and a != VIDA_EMAIL.lower()}
+        hits = {a for a in addrs if a in email_index}
+
+        rows = campaign_rows()
+        by_email = {c["email"].lower(): c for c in rows}
+        orgs = {_org_key(by_email[a]) for a in hits if a in by_email} - {""}
+        if not orgs:
+            # Whole-word match, so "region 10" never matches "region 108".
+            subj = (subject or "").lower()
+            orgs = {k for k in {_org_key(c) for c in rows} if len(k) >= 6 and
+                    re.search(r"(?<!\w)" + re.escape(k) + r"(?!\w)", subj)}
+        targets = hits | {(sender_email or "").lower()} - {""}
+        targets |= {c["email"].lower() for c in rows if _org_key(c) in orgs}
+        for e in sorted(targets):
+            do_not_contact.add(e)
+            mark_row(e, reply_status="Unsubscribed", do_not_contact="yes",
+                     last_result=last_result)
+        log.info(f"    Opt-out covers {len(targets)} address(es)"
+                 + (f" across {len(orgs)} org(s): {', '.join(sorted(orgs))}" if orgs else ""))
 
     try:
         ctx  = ssl_ctx()
@@ -2336,10 +2381,7 @@ def check_replies(state, dry_run=False):
 
                 elif kind == "unsubscribe":
                     log.info(f"  Unsubscribe from {redact_email(sender_email)} — archiving + blocking")
-                    if sender_email:
-                        do_not_contact.add(sender_email)
-                        mark_row(sender_email, reply_status="Unsubscribed",
-                                 do_not_contact="yes", last_result="unsubscribe request")
+                    suppress_opt_out(msg, sender_email, subject, "unsubscribe request")
                     if not dry_run:
                         archive_message(mail, mid)
                         _bump(state, "daily_unsub_count")
@@ -2362,10 +2404,7 @@ def check_replies(state, dry_run=False):
                         continue
                     if opt_out:
                         log.info(f"  Opt-out reply from {redact_email(sender_email)} — unsubscribing + blocking")
-                        if sender_email:
-                            do_not_contact.add(sender_email)
-                            mark_row(sender_email, reply_status="Unsubscribed",
-                                     do_not_contact="yes", last_result="opt-out (reply)")
+                        suppress_opt_out(msg, sender_email, subject, "opt-out (reply)")
                         if not dry_run:
                             archive_message(mail, mid)
                             _bump(state, "daily_unsub_count")

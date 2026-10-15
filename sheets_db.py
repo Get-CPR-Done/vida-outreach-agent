@@ -175,6 +175,26 @@ def is_internal(email):
     return "@" in e and e.rsplit("@", 1)[-1] in INTERNAL_EMAIL_DOMAINS
 
 
+# Whole domains we never email, from the BLOCKED_DOMAINS repo variable (comma-separated).
+# Kept out of the code because the repo is public and a domain can be a person's own.
+# Added 2026-10-15 after a league board asked five times to be removed and the agent
+# kept sending: its replies came from a personal address we never emailed.
+BLOCKED_DOMAINS = {d.strip().lower().lstrip("@")
+                   for d in (os.environ.get("BLOCKED_DOMAINS", "") or "").split(",")
+                   if d.strip()}
+
+
+def is_blocked(email):
+    e = (email or "").strip().lower()
+    return "@" in e and e.rsplit("@", 1)[-1] in BLOCKED_DOMAINS
+
+
+def is_suppressed(c):
+    """Never email this row again: marked do-not-contact, or its domain is blocked."""
+    return (c.get("do_not_contact", "").lower() in ("yes", "true", "1", "y")
+            or is_blocked(c.get("email")))
+
+
 def is_eligible(c):
     """A row we may email: not yet contacted, not suppressed, still subscribed."""
     if not c:
@@ -183,7 +203,7 @@ def is_eligible(c):
         return False
     if c["contacted"]:
         return False
-    if c["do_not_contact"].lower() in ("yes", "true", "1", "y"):
+    if is_suppressed(c):
         return False
     if c["sub_status"] and c["sub_status"] not in ("subscribed", ""):
         return False

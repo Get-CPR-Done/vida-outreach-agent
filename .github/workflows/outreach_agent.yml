@@ -129,6 +129,8 @@ jobs:
           REPLY_RESCAN_AFTER: ${{ vars.REPLY_RESCAN_AFTER }}
           CAMPAIGN_LEAD_EMAIL: ${{ vars.CAMPAIGN_LEAD_EMAIL }}
           CAMPAIGN_LEAD_NAME: ${{ vars.CAMPAIGN_LEAD_NAME }}
+          # Whole domains never to email (comma-separated repo variable; kept out of a public repo).
+          BLOCKED_DOMAINS: ${{ vars.BLOCKED_DOMAINS }}
           # Cursor floor (repo variable, unset here). Re-applied on every state load so a
           # jump to a specific row survives the state.json commit of an in-flight run.
           SHEET_CURSOR_MIN: ${{ vars.SHEET_CURSOR_MIN }}

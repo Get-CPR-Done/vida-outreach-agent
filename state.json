@@ -178,7 +178,7 @@
     "2026-10-13": 8,
     "2026-10-14": 6,
     "2026-10-15": 1,
-    "2026-10-16": 0
+    "2026-10-16": 6
   },
   "do_not_contact": [],
   "bounce_replacement_queue": [],
@@ -280,7 +280,8 @@
     "2026-10-12": 2,
     "2026-10-13": 5,
     "2026-10-14": 4,
-    "2026-10-15": 2
+    "2026-10-15": 2,
+    "2026-10-16": 10
   },
   "daily_sql_count": {
     "2026-07-30": 4,
@@ -351,7 +352,8 @@
     "2026-10-11": 1,
     "2026-10-12": 7,
     "2026-10-13": 2,
-    "2026-10-14": 4
+    "2026-10-14": 4,
+    "2026-10-16": 2
   },
   "daily_customer_count": {
     "2026-07-31": 2,
@@ -381,7 +383,8 @@
     "2026-10-10": 1,
     "2026-10-12": 5,
     "2026-10-13": 5,
-    "2026-10-14": 1
+    "2026-10-14": 1,
+    "2026-10-16": 3
   },
   "forwarded_recent": {
     "lsilva@eusd.org": "2026-08-17",
@@ -485,7 +488,7 @@
     "alvin@ayso35.org": "2026-10-12",
     "treasurer.vusc@gmail.com": "2026-10-12",
     "amyxu3221@gmail.com": "2026-10-12",
-    "rca@ayso213.org": "2026-10-12",
+    "rca@ayso213.org": "2026-10-16",
     "170lkimble@gmail.com": "2026-10-12",
     "applelanddaycare@gmail.com": "2026-10-12",
     "sweetkrw@gmail.com": "2026-10-13",
@@ -502,7 +505,12 @@
     "littlelearnersfc@gmail.com": "2026-10-14",
     "safetyofficerwsll@gmail.com": "2026-10-14",
     "rc.ayso54@gmail.com": "2026-10-14",
-    "patricia.mv.lima@gmail.com": "2026-10-15"
+    "patricia.mv.lima@gmail.com": "2026-10-15",
+    "tgbdaycare@gmail.com": "2026-10-16",
+    "refereeadmin136@gmail.com": "2026-10-16",
+    "wilrad4620@gmail.com": "2026-10-16",
+    "bayareapopwarnersecretary@gmail.com": "2026-10-16",
+    "treasurer@ayso165.org": "2026-10-16"
   },
   "open_leads": [
     {

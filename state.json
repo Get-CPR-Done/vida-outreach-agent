@@ -178,7 +178,8 @@
     "2026-10-13": 8,
     "2026-10-14": 6,
     "2026-10-15": 1,
-    "2026-10-16": 7
+    "2026-10-16": 7,
+    "2026-10-17": 0
   },
   "do_not_contact": [],
   "bounce_replacement_queue": [],
@@ -612,7 +613,7 @@
       "company": "AYSO Region 16",
       "why": "Provides coach count (20-25); ready to receive quote and dates",
       "handed_at": "2026-10-16T18:45:32-07:00",
-      "alerted": false,
+      "alerted": true,
       "closed": false
     }
   ],

@@ -178,7 +178,7 @@
     "2026-10-13": 8,
     "2026-10-14": 6,
     "2026-10-15": 1,
-    "2026-10-16": 6
+    "2026-10-16": 7
   },
   "do_not_contact": [],
   "bounce_replacement_queue": [],
@@ -312,7 +312,8 @@
     "2026-10-11": 1,
     "2026-10-12": 1,
     "2026-10-13": 1,
-    "2026-10-14": 2
+    "2026-10-14": 2,
+    "2026-10-16": 1
   },
   "daily_unsub_count": {
     "2026-07-30": 3,
@@ -510,7 +511,8 @@
     "refereeadmin136@gmail.com": "2026-10-16",
     "wilrad4620@gmail.com": "2026-10-16",
     "bayareapopwarnersecretary@gmail.com": "2026-10-16",
-    "treasurer@ayso165.org": "2026-10-16"
+    "treasurer@ayso165.org": "2026-10-16",
+    "aysoregion16@yahoo.com": "2026-10-16"
   },
   "open_leads": [
     {
@@ -601,6 +603,16 @@
       "why": "President requests call to plan CPR certification for coaches.",
       "handed_at": "2026-10-11T12:45:35-07:00",
       "alerted": true,
+      "closed": false
+    },
+    {
+      "email": "aysoregion16@yahoo.com",
+      "cid": "255720727435",
+      "name": "Jose Serrano",
+      "company": "AYSO Region 16",
+      "why": "Provides coach count (20-25); ready to receive quote and dates",
+      "handed_at": "2026-10-16T18:45:32-07:00",
+      "alerted": false,
       "closed": false
     }
   ],

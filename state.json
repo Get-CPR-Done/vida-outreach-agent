@@ -73,7 +73,8 @@
     "2026-10-14": 289,
     "2026-10-15": 249,
     "2026-10-16": 500,
-    "2026-10-19": 500
+    "2026-10-19": 500,
+    "2026-10-20": 472
   },
   "daily_reply_count": {
     "2026-06-15": 10,
@@ -182,12 +183,13 @@
     "2026-10-16": 7,
     "2026-10-17": 0,
     "2026-10-18": 0,
-    "2026-10-19": 9
+    "2026-10-19": 9,
+    "2026-10-20": 0
   },
   "do_not_contact": [],
   "bounce_replacement_queue": [],
   "sheet_cursor": 20386,
-  "last_daily_run": "2026-10-19",
+  "last_daily_run": "2026-10-20",
   "daily_new_count": {
     "2026-07-29": 750,
     "2026-07-30": 281,
@@ -214,7 +216,8 @@
     "2026-10-09": 212,
     "2026-10-14": 89,
     "2026-10-15": 77,
-    "2026-10-19": 11
+    "2026-10-19": 11,
+    "2026-10-20": 22
   },
   "daily_bounce_count": {
     "2026-07-30": 292,
@@ -636,23 +639,13 @@
       "closed": false
     },
     {
-      "email": "rlal94565@aol.com",
-      "cid": "256135952927",
-      "name": "Rohin Lal",
-      "company": "Contra Costa Youth Soccer Club",
-      "why": "Asks cost per person for AB 310 certification training.",
-      "handed_at": "2026-10-19T08:45:42-07:00",
-      "alerted": false,
-      "closed": false
-    },
-    {
       "email": "area1fad@outlook.com",
       "cid": "256184035842",
       "name": "Jason South",
       "company": "AYSO Area 1F",
       "why": "Requests cost breakdown\u2014actionable sales opportunity.",
       "handed_at": "2026-10-19T11:25:22-07:00",
-      "alerted": false,
+      "alerted": true,
       "closed": false
     },
     {
@@ -662,7 +655,7 @@
       "company": "Temple City American Little League",
       "why": "40 coaches need training; mentions cost sensitivity; ready to discuss pricing.",
       "handed_at": "2026-10-19T11:25:39-07:00",
-      "alerted": false,
+      "alerted": true,
       "closed": false
     }
   ],
@@ -677,7 +670,8 @@
     "2026-10-14": 89,
     "2026-10-15": 49,
     "2026-10-16": 300,
-    "2026-10-19": 300
+    "2026-10-19": 300,
+    "2026-10-20": 272
   },
   "reply_rescan_done": "2026-10-05T03:07:00Z/2026-10-06T19:20:16Z"
 }

@@ -188,7 +188,7 @@
     "2026-10-19": 9,
     "2026-10-20": 0,
     "2026-10-21": 3,
-    "2026-10-22": 1
+    "2026-10-22": 3
   },
   "do_not_contact": [],
   "bounce_replacement_queue": [],
@@ -335,7 +335,8 @@
     "2026-10-14": 2,
     "2026-10-16": 1,
     "2026-10-19": 3,
-    "2026-10-21": 1
+    "2026-10-21": 1,
+    "2026-10-22": 1
   },
   "daily_unsub_count": {
     "2026-07-30": 3,
@@ -380,7 +381,8 @@
     "2026-10-17": 2,
     "2026-10-19": 2,
     "2026-10-20": 2,
-    "2026-10-21": 1
+    "2026-10-21": 1,
+    "2026-10-22": 1
   },
   "daily_customer_count": {
     "2026-07-31": 2,
@@ -479,7 +481,7 @@
     "president@sacunited.com": "2026-10-07",
     "kevincrow@busc.org": "2026-10-07",
     "secretary@centralcoastsurfsoccer.com": "2026-10-07",
-    "ericaferriolamll@gmail.com": "2026-10-07",
+    "ericaferriolamll@gmail.com": "2026-10-22",
     "treasurer@ayso827.org": "2026-10-07",
     "rca@ayso20.org": "2026-10-07",
     "jarrodebutler@gmail.com": "2026-10-07",
@@ -551,7 +553,8 @@
     "merrygardenpreschool@gmail.com": "2026-10-21",
     "erc@ayso889.org": "2026-10-21",
     "felicia_zulhendri@hotmail.com": "2026-10-21",
-    "poosplayhousellc@gmail.com": "2026-10-22"
+    "poosplayhousellc@gmail.com": "2026-10-22",
+    "info@scatico.com": "2026-10-22"
   },
   "open_leads": [
     {
@@ -682,6 +685,16 @@
       "why": "Requests quote for 25/50/100 coaches, asks capacity and format",
       "handed_at": "2026-10-21T14:45:49-07:00",
       "alerted": true,
+      "closed": false
+    },
+    {
+      "email": "ericaferriolamll@gmail.com",
+      "cid": "253697271952",
+      "name": "Erica Ferriola",
+      "company": "Montclair Little League",
+      "why": "Requested quote for 50 coaches; following up on delivery timeline.",
+      "handed_at": "2026-10-22T12:45:47-07:00",
+      "alerted": false,
       "closed": false
     }
   ],

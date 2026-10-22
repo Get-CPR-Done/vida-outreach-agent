@@ -188,7 +188,7 @@
     "2026-10-19": 9,
     "2026-10-20": 0,
     "2026-10-21": 3,
-    "2026-10-22": 3
+    "2026-10-22": 4
   },
   "do_not_contact": [],
   "bounce_replacement_queue": [],
@@ -336,7 +336,7 @@
     "2026-10-16": 1,
     "2026-10-19": 3,
     "2026-10-21": 1,
-    "2026-10-22": 1
+    "2026-10-22": 2
   },
   "daily_unsub_count": {
     "2026-07-30": 3,
@@ -554,7 +554,8 @@
     "erc@ayso889.org": "2026-10-21",
     "felicia_zulhendri@hotmail.com": "2026-10-21",
     "poosplayhousellc@gmail.com": "2026-10-22",
-    "info@scatico.com": "2026-10-22"
+    "info@scatico.com": "2026-10-22",
+    "safety@ayso37.org": "2026-10-22"
   },
   "open_leads": [
     {
@@ -694,6 +695,16 @@
       "company": "Montclair Little League",
       "why": "Requested quote for 50 coaches; following up on delivery timeline.",
       "handed_at": "2026-10-22T12:45:47-07:00",
+      "alerted": false,
+      "closed": false
+    },
+    {
+      "email": "safety@ayso37.org",
+      "cid": "257140380194",
+      "name": "Luis Rodriguez",
+      "company": "AYSO Region 37",
+      "why": "Requests to schedule phone meeting; ready to certify staff ASAP",
+      "handed_at": "2026-10-22T16:08:42-07:00",
       "alerted": false,
       "closed": false
     }

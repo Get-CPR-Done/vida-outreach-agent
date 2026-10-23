@@ -76,7 +76,8 @@
     "2026-10-19": 500,
     "2026-10-20": 472,
     "2026-10-21": 207,
-    "2026-10-22": 212
+    "2026-10-22": 212,
+    "2026-10-23": 500
   },
   "daily_reply_count": {
     "2026-06-15": 10,
@@ -188,12 +189,13 @@
     "2026-10-19": 9,
     "2026-10-20": 0,
     "2026-10-21": 3,
-    "2026-10-22": 4
+    "2026-10-22": 4,
+    "2026-10-23": 0
   },
   "do_not_contact": [],
   "bounce_replacement_queue": [],
   "sheet_cursor": 20835,
-  "last_daily_run": "2026-10-22",
+  "last_daily_run": "2026-10-23",
   "daily_new_count": {
     "2026-07-29": 750,
     "2026-07-30": 281,
@@ -382,7 +384,8 @@
     "2026-10-19": 2,
     "2026-10-20": 2,
     "2026-10-21": 1,
-    "2026-10-22": 2
+    "2026-10-22": 2,
+    "2026-10-23": 1
   },
   "daily_customer_count": {
     "2026-07-31": 2,
@@ -689,23 +692,13 @@
       "closed": false
     },
     {
-      "email": "ericaferriolamll@gmail.com",
-      "cid": "253697271952",
-      "name": "Erica Ferriola",
-      "company": "Montclair Little League",
-      "why": "Requested quote for 50 coaches; following up on delivery timeline.",
-      "handed_at": "2026-10-22T12:45:47-07:00",
-      "alerted": false,
-      "closed": false
-    },
-    {
       "email": "safety@ayso37.org",
       "cid": "257140380194",
       "name": "Luis Rodriguez",
       "company": "AYSO Region 37",
       "why": "Requests to schedule phone meeting; ready to certify staff ASAP",
       "handed_at": "2026-10-22T16:08:42-07:00",
-      "alerted": false,
+      "alerted": true,
       "closed": false
     }
   ],
@@ -723,7 +716,8 @@
     "2026-10-19": 300,
     "2026-10-20": 272,
     "2026-10-21": 7,
-    "2026-10-22": 13
+    "2026-10-22": 13,
+    "2026-10-23": 300
   },
   "reply_rescan_done": "2026-10-05T03:07:00Z/2026-10-06T19:20:16Z"
 }

@@ -190,7 +190,7 @@
     "2026-10-20": 0,
     "2026-10-21": 3,
     "2026-10-22": 4,
-    "2026-10-23": 0
+    "2026-10-23": 4
   },
   "do_not_contact": [],
   "bounce_replacement_queue": [],
@@ -303,7 +303,8 @@
     "2026-10-19": 6,
     "2026-10-20": 3,
     "2026-10-21": 2,
-    "2026-10-22": 9
+    "2026-10-22": 9,
+    "2026-10-23": 9
   },
   "daily_sql_count": {
     "2026-07-30": 4,
@@ -338,7 +339,8 @@
     "2026-10-16": 1,
     "2026-10-19": 3,
     "2026-10-21": 1,
-    "2026-10-22": 2
+    "2026-10-22": 2,
+    "2026-10-23": 1
   },
   "daily_unsub_count": {
     "2026-07-30": 3,
@@ -385,7 +387,7 @@
     "2026-10-20": 2,
     "2026-10-21": 1,
     "2026-10-22": 2,
-    "2026-10-23": 1
+    "2026-10-23": 6
   },
   "daily_customer_count": {
     "2026-07-31": 2,
@@ -417,7 +419,8 @@
     "2026-10-13": 5,
     "2026-10-14": 1,
     "2026-10-16": 3,
-    "2026-10-19": 2
+    "2026-10-19": 2,
+    "2026-10-23": 3
   },
   "forwarded_recent": {
     "lsilva@eusd.org": "2026-08-17",
@@ -558,7 +561,11 @@
     "felicia_zulhendri@hotmail.com": "2026-10-21",
     "poosplayhousellc@gmail.com": "2026-10-22",
     "info@scatico.com": "2026-10-22",
-    "safety@ayso37.org": "2026-10-22"
+    "safety@ayso37.org": "2026-10-22",
+    "vp@ranchohillstitanspopwarner.com": "2026-10-23",
+    "chayaeilfort@gmail.com": "2026-10-23",
+    "vicepresident.mlysl@gmail.com": "2026-10-23",
+    "r.leafstone@lellbaseball.org": "2026-10-23"
   },
   "open_leads": [
     {
@@ -699,6 +706,16 @@
       "why": "Requests to schedule phone meeting; ready to certify staff ASAP",
       "handed_at": "2026-10-22T16:08:42-07:00",
       "alerted": true,
+      "closed": false
+    },
+    {
+      "email": "vp@ranchohillstitanspopwarner.com",
+      "cid": "257411592491",
+      "name": "Taylor Garcia",
+      "company": "Rancho Hills Titans Pop Warner",
+      "why": "Asks for pricing/cost estimate; board discussion indicates buying process.",
+      "handed_at": "2026-10-23T12:23:38-07:00",
+      "alerted": false,
       "closed": false
     }
   ],

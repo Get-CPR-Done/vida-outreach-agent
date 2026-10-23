@@ -1646,6 +1646,8 @@ CAMPAIGN_LEAD_EMAIL = os.environ.get("CAMPAIGN_LEAD_EMAIL") or REP_EMAIL
 CAMPAIGN_LEAD_NAME  = os.environ.get("CAMPAIGN_LEAD_NAME") or REP_NAME
 
 SLACK_BOT_TOKEN    = os.environ.get("SLACK_BOT_TOKEN", "")
+# Whoever takes the next step on a GCD SQL gets tagged on the #gcd post (Chris, 10/23/26: Kayla).
+SLACK_LEAD_MENTION = os.environ.get("SLACK_LEAD_MENTION") or "<@U091N5QLNE6>"
 SLACK_LEADS_CHANNEL = os.environ.get("SLACK_LEADS_CHANNEL") or "C0804PH0W0Z"   # #GCD (private)
 STALL_HOURS = int(os.environ.get("STALL_HOURS", "12") or 12)
 
@@ -2608,7 +2610,8 @@ def check_replies(state, dry_run=False):
                                     + (f"\nOwner: {CAMPAIGN_LEAD_EMAIL} (AB 310 youth sports, "
                                        f"handoff email) · via {SENDING_NAME}" if campaign_lead else
                                        f"\nOwner: {LEAD_OWNER_EMAIL} · task due in "
-                                       f"{TASK_DUE_MINUTES} min · via {SENDING_NAME}"))
+                                       f"{TASK_DUE_MINUTES} min · via {SENDING_NAME}")
+                                    + f"\n{SLACK_LEAD_MENTION} please take the next step.")
                                 # Watch it for follow-through; escalates after STALL_HOURS.
                                 # Not for campaign leads: no HubSpot task to watch.
                                 if not campaign_lead:

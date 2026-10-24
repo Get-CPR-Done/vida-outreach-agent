@@ -190,7 +190,7 @@
     "2026-10-20": 0,
     "2026-10-21": 3,
     "2026-10-22": 4,
-    "2026-10-23": 8
+    "2026-10-23": 9
   },
   "do_not_contact": [],
   "bounce_replacement_queue": [],
@@ -340,7 +340,7 @@
     "2026-10-19": 3,
     "2026-10-21": 1,
     "2026-10-22": 2,
-    "2026-10-23": 1
+    "2026-10-23": 2
   },
   "daily_unsub_count": {
     "2026-07-30": 3,
@@ -568,7 +568,8 @@
     "r.leafstone@lellbaseball.org": "2026-10-23",
     "jamiehickox@sbcglobal.net": "2026-10-23",
     "dellman1951ad@gmail.com": "2026-10-23",
-    "sewcarla2@gmail.com": "2026-10-23"
+    "sewcarla2@gmail.com": "2026-10-23",
+    "jiaekim70@gmail.com": "2026-10-23"
   },
   "open_leads": [
     {
@@ -718,6 +719,16 @@
       "company": "Rancho Hills Titans Pop Warner",
       "why": "Asks for pricing/cost estimate; board discussion indicates buying process.",
       "handed_at": "2026-10-23T12:23:38-07:00",
+      "alerted": false,
+      "closed": false
+    },
+    {
+      "email": "jiaekim70@gmail.com",
+      "cid": "257418173486",
+      "name": "Jiae Kim",
+      "company": "",
+      "why": "Requests pricing, participant count (4), on-site availability, scheduling.",
+      "handed_at": "2026-10-23T19:35:07-07:00",
       "alerted": false,
       "closed": false
     }
